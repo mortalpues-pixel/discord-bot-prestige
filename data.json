@@ -1,0 +1,85 @@
+{
+  "users": {
+    "1178775031472459797": 30,
+    "1312434186644099134": 0
+  },
+  "active_mission": {
+    "id": 1,
+    "mission_key": "custom",
+    "description": "Chuparsela a morack",
+    "reward": 30,
+    "is_custom": true,
+    "date_set": "2025-12-18T01:30:24.466Z"
+  },
+  "submissions": [
+    {
+      "id": 1,
+      "user_id": "1178775031472459797",
+      "mission_key": "vc_1hr",
+      "proof_content": "https://cdn.discordapp.com/ephemeral-attachments/1451011613233779004/1451012402039750870/2025-11-17_2h5m59s_1920x1080.png?ex=6944a01b&is=69434e9b&hm=c1bbd3a18125dcd8db03fd89fcf42d012e6952bd29cd7070cbe9aa23bc1c21a3&",
+      "status": "pending",
+      "timestamp": 1766018717535
+    },
+    {
+      "id": 2,
+      "user_id": "1178775031472459797",
+      "mission_key": "custom",
+      "proof_content": [
+        "https://cdn.discordapp.com/ephemeral-attachments/1451011613233779004/1451023861192589322/2025-11-17_2h5m49s_1920x1080.png?ex=6944aac7&is=69435947&hm=277a54f443fba1a35e7610b621f028cac714cab85a685d4366979767a127bb82&"
+      ],
+      "reward_snapshot": 30,
+      "status": "approved",
+      "timestamp": 1766021448145
+    },
+    {
+      "id": 3,
+      "user_id": "1312434186644099134",
+      "mission_key": "custom",
+      "proof_content": [
+        "https://cdn.discordapp.com/ephemeral-attachments/1451011613233779004/1451024422273155174/5066a613c34da69870c267136e25c816.png?ex=6944ab4d&is=694359cd&hm=97151eebc39e373e342ae83114197c0dd49754a7e61c6733d47a3258030d7401&"
+      ],
+      "reward_snapshot": 30,
+      "status": "approved",
+      "timestamp": 1766021582022
+    }
+  ],
+  "events": [
+    {
+      "id": 3,
+      "title": "WAA",
+      "description": "AAAA",
+      "date_time": "12312",
+      "created_by": "1178775031472459797",
+      "reward": 120,
+      "status": "closed"
+    },
+    {
+      "id": 2,
+      "title": "Prueba",
+      "description": "Mis dos huevos gordos",
+      "date_time": "13/24 16:00",
+      "created_by": "1178775031472459797"
+    },
+    {
+      "id": 1,
+      "title": "AA",
+      "description": "AAA",
+      "date_time": "AAA",
+      "created_by": "1178775031472459797"
+    }
+  ],
+  "event_attendees": [
+    {
+      "event_id": 1,
+      "user_id": "1178775031472459797"
+    },
+    {
+      "event_id": 2,
+      "user_id": "1178775031472459797"
+    },
+    {
+      "event_id": 3,
+      "user_id": "1178775031472459797"
+    }
+  ]
+}
