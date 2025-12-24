@@ -21,6 +21,11 @@ module.exports = {
             subcommand
                 .setName('rechazar')
                 .setDescription('Rechaza una entrega específica.')
+                .addIntegerOption(option => option.setName('id').setDescription('ID de la entrega').setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('detalles')
+                .setDescription('Ver todos los detalles y fotos de una entrega.')
                 .addIntegerOption(option => option.setName('id').setDescription('ID de la entrega').setRequired(true))),
     async execute(interaction) {
         const logo = new AttachmentBuilder(config.branding.logoPath);
@@ -42,13 +47,14 @@ module.exports = {
 
             const fields = submissions.slice(0, 10).map(s => {
                 const mission = config.missions.find(m => m.key === s.mission_key);
+
                 // Handle array proofs for display
-                const proofDisplay = Array.isArray(s.proof_content) ? s.proof_content[0] : s.proof_content;
-                const proofCount = Array.isArray(s.proof_content) ? s.proof_content.length : 1;
+                const proofs = Array.isArray(s.proof_content) ? s.proof_content : [s.proof_content];
+                const proofLinks = proofs.map((url, index) => `[Img ${index + 1}](${url})`).join(' | ');
 
                 return {
                     name: `🆔 **${s.id}** | Usuario: <@${s.user_id}>`,
-                    value: `**Misión**: ${mission ? mission.description : s.mission_key}\n**Pruebas**: ${proofCount} imagen(es) - [Ver Primera](${proofDisplay})`
+                    value: `**Misión**: ${mission ? mission.description : s.mission_key}\n**Pruebas**: ${proofs.length} total - ${proofLinks}`
                 };
             });
 
@@ -98,6 +104,43 @@ module.exports = {
                 const embed = createPremiumEmbed('❌ Rechazado', `Entrega **#${id}** rechazada.`);
                 return interaction.reply({ embeds: [embed], files: [logo] });
             }
+        } else if (subcommand === 'detalles') {
+            const id = interaction.options.getInteger('id');
+            const submission = await db.getSubmission(id);
+
+            if (!submission) {
+                const embed = createPremiumEmbed('❌ Error', 'No se encontró una entrega con ese ID.');
+                return interaction.reply({ embeds: [embed], files: [logo], ephemeral: true });
+            }
+
+            const mission = config.missions.find(m => m.key === submission.mission_key);
+            const proofs = Array.isArray(submission.proof_content) ? submission.proof_content : [submission.proof_content];
+
+            const mainEmbed = createPremiumEmbed(`🆔 Detalles Entrega #${id}`, `De: <@${submission.user_id}>`)
+                .addFields(
+                    { name: '📋 Misión', value: mission ? mission.description : submission.mission_key },
+                    { name: '📌 Estado', value: `**${submission.status.toUpperCase()}**`, inline: true },
+                    { name: '💎 Recompensa', value: `${submission.reward_snapshot} puntos`, inline: true },
+                    { name: '📷 Pruebas', value: `${proofs.length} imagen(es)` }
+                );
+
+            // Create auxiliary embeds for the images to show them in a grid/stack
+            const embeds = [mainEmbed];
+
+            // Add images. Discord allows up to 10 embeds per message, and will group them if they have the same URL (if using dummy embeds)
+            // or just stack them. Here we use the images for each one.
+            proofs.forEach((url, index) => {
+                if (index === 0) {
+                    mainEmbed.setImage(url);
+                } else {
+                    const imgEmbed = createPremiumEmbed('', '')
+                        .setURL(url) // Some browsers/Discord clients group embeds by URL
+                        .setImage(url);
+                    embeds.push(imgEmbed);
+                }
+            });
+
+            return interaction.reply({ embeds: embeds.slice(0, 10), files: [logo], ephemeral: true });
         }
     },
 };
