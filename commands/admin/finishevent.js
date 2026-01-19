@@ -47,7 +47,7 @@ module.exports = {
         // Distribute Rewards
         let count = 0;
         for (const userId of attendees) {
-            await db.addUserPrestige(userId, reward);
+            await db.addUserPrestige(userId, reward, `Evento: ${event.title}`, interaction.user.id);
             count++;
         }
 

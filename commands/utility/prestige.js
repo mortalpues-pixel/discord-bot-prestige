@@ -11,6 +11,7 @@ module.exports = {
             option.setName('usuario')
                 .setDescription('Ver el prestigio de otro usuario (opcional)')),
     async execute(interaction) {
+        await interaction.deferReply();
         const targetUser = interaction.options.getUser('usuario') || interaction.user;
         const userData = await db.getUserData(targetUser.id);
         const logo = new AttachmentBuilder(config.branding.logoPath);
@@ -22,6 +23,6 @@ module.exports = {
                 { name: '📅 Puntos Semanales', value: `**${userData.weekly_prestige}**`, inline: true }
             );
 
-        await interaction.reply({ embeds: [embed], files: [logo] });
+        await interaction.editReply({ embeds: [embed], files: [logo] });
     },
 };

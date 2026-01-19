@@ -86,7 +86,7 @@ module.exports = {
                     reward = mission ? mission.reward : 10;
                 }
 
-                await db.addUserPrestige(submission.user_id, reward);
+                await db.addUserPrestige(submission.user_id, reward, `Misión Aprobada: ${submission.mission_key}`, interaction.user.id);
                 await db.updateSubmissionStatus(id, 'approved');
 
                 try {

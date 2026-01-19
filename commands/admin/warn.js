@@ -19,6 +19,7 @@ module.exports = {
                 .setDescription('Ver las advertencias de un usuario.')
                 .addUserOption(option => option.setName('usuario').setDescription('El usuario a consultar').setRequired(true))),
     async execute(interaction) {
+        await interaction.deferReply();
         const subcommand = interaction.options.getSubcommand();
         const targetUser = interaction.options.getUser('usuario');
 
@@ -50,14 +51,14 @@ module.exports = {
                     { name: 'Total Advertencias', value: `${warningCount}` }
                 );
 
-            return interaction.reply({ embeds: [embed] });
+            return interaction.editReply({ embeds: [embed] });
 
         } else if (subcommand === 'ver') {
             const warnings = await db.getWarnings(targetUser.id);
 
             if (warnings.length === 0) {
                 const embed = createPremiumEmbed('✅ Limpio', `<@${targetUser.id}> no tiene advertencias.`);
-                return interaction.reply({ embeds: [embed] });
+                return interaction.editReply({ embeds: [embed] });
             }
 
             const embed = createPremiumEmbed('⚠️ Historial de Advertencias', `Usuario: <@${targetUser.id}> - Total: ${warnings.length}`);
@@ -73,7 +74,7 @@ module.exports = {
                 });
             });
 
-            return interaction.reply({ embeds: [embed] });
+            return interaction.editReply({ embeds: [embed] });
         }
     },
 };

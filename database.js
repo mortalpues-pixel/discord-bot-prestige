@@ -4,6 +4,7 @@ const Mission = require('./models/Mission');
 const Submission = require('./models/Submission');
 const Event = require('./models/Event');
 const Counter = require('./models/Counter');
+const PrestigeLog = require('./models/PrestigeLog');
 
 // Initialize DB
 async function initDb() {
@@ -80,7 +81,7 @@ const getUserData = async (userId) => {
     return user.toObject();
 };
 
-const addUserPrestige = async (userId, amount) => {
+const addUserPrestige = async (userId, amount, reason = "Unknown", adminId = "SYSTEM") => {
     let user = await User.findOne({ userId });
     if (!user) {
         user = new User({ userId });
@@ -92,6 +93,21 @@ const addUserPrestige = async (userId, amount) => {
     user.weekly_prestige += amount;
 
     await user.save();
+    await user.save();
+
+    // Log the transaction
+    try {
+        await PrestigeLog.create({
+            targetUserId: userId,
+            adminId: adminId,
+            amount: amount,
+            reason: reason,
+            timestamp: new Date()
+        });
+    } catch (err) {
+        console.error('Failed to create prestige log:', err);
+    }
+
     return user.prestige;
 };
 
@@ -231,25 +247,44 @@ const getWarnings = async (userId) => {
 };
 // End Warnings
 
+// Prestige Logs
+const getPrestigeLogs = async (userId, limit = 10) => {
+    return await PrestigeLog.find({ targetUserId: userId })
+        .sort({ timestamp: -1 })
+        .limit(limit);
+};
+
+
 // Weekly Leaderboard
 const getWeeklyLeaderboard = async () => {
-    // 1. Fetch all users to check resets
-    // Note: For very large databases this should be batched or handled differently,
-    // but for a discord bot < 10k users it's acceptable for now.
-    const users = await User.find({});
+    // 1. Fetch only users who have > 0 weekly prestige.
+    // This avoids fetching the entire database for users who definitely won't be on the top 10 (unless top 10 allows 0s, but we prioritize earners).
+    // Also drastically reduces the loop size for reset checks.
+    const users = await User.find({ weekly_prestige: { $gt: 0 } });
 
     const validUsers = [];
+    const savePromises = [];
 
+    // 2. Check for resets
     for (const user of users) {
+        // checkWeeklyReset is technically async in signature but synchronous in logic, 
+        // however we await it to be safe if implementation changes.
         const changed = await checkWeeklyReset(user);
-        if (changed) await user.save();
 
-        if (user.weekly_prestige > 0) {
-            validUsers.push(user);
+        if (changed) {
+            // Queue the save operation to run in parallel later
+            savePromises.push(user.save());
         }
+
+        validUsers.push(user);
     }
 
-    // 2. Sort by weekly_prestige desc
+    // 3. Wait for all necessary updates to complete
+    if (savePromises.length > 0) {
+        await Promise.all(savePromises);
+    }
+
+    // 4. Sort by weekly_prestige desc
     validUsers.sort((a, b) => b.weekly_prestige - a.weekly_prestige);
 
     return validUsers.slice(0, 10);
@@ -275,5 +310,7 @@ module.exports = {
     getEventAttendees,
     addWarning,
     getWarnings,
-    getWeeklyLeaderboard
+    getWarnings,
+    getWeeklyLeaderboard,
+    getPrestigeLogs
 };
