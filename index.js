@@ -1,6 +1,13 @@
 require('dotenv').config();
 const fs = require('node:fs');
 
+// Debug logging for environment variables
+console.log('--- ENV VARIABLE DEBUG ---');
+console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.length : 0);
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('--------------------------');
+
 // Global error handling to prevent the bot from "turning off" on Render
 process.on('unhandledRejection', error => {
     console.error('Unhandled promise rejection:', error);
