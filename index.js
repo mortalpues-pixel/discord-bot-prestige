@@ -35,6 +35,7 @@ app.listen(PORT, () => {
     console.log(`Web server running on port ${PORT}`);
 });
 
+console.log('[Checkpoint 1] Initializing Discord Client...');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -42,7 +43,9 @@ const client = new Client({
     ]
 });
 
+
 client.commands = new Collection();
+console.log('[Checkpoint 2] Loading commands...');
 
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
@@ -60,6 +63,8 @@ for (const folder of commandFolders) {
         }
     }
 }
+
+console.log('[Checkpoint 3] Commands loaded. Setting up events...');
 
 client.once(Events.ClientReady, async readyClient => {
     console.log(`Ready! Logged in as ${readyClient.user.tag}`);
@@ -120,6 +125,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
+console.log('[Checkpoint 4] Events set up. Logging in...');
 console.log('Attempting to log in to Discord...');
 client.login(process.env.DISCORD_TOKEN)
     .then(() => console.log('Login promise resolved!'))
