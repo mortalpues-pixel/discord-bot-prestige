@@ -120,4 +120,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+console.log('Attempting to log in to Discord...');
+client.login(process.env.DISCORD_TOKEN)
+    .then(() => console.log('Login promise resolved!'))
+    .catch(err => console.error('LOGIN ERROR:', err));
