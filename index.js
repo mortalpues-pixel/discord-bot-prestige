@@ -14,6 +14,7 @@ const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const cron = require('node-cron');
 const db = require('./database');
 const config = require('./config');
+const mongoose = require('mongoose');
 
 const express = require('express');
 const app = express();
@@ -68,6 +69,18 @@ client.on('error', error => {
 
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
+
+    if (mongoose.connection.readyState !== 1) {
+        try {
+            await interaction.reply({
+                content: '❌ **Error Crítico**: La base de datos no está conectada. El bot no puede procesar comandos hasta que se restablezca la conexión.',
+                flags: 64
+            });
+        } catch (e) {
+            console.error('Failed to send DB error message:', e);
+        }
+        return;
+    }
 
     const command = interaction.client.commands.get(interaction.commandName);
 
