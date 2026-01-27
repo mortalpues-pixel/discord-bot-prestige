@@ -127,6 +127,16 @@ client.on(Events.InteractionCreate, async interaction => {
 
 console.log('[Checkpoint 4] Events set up. Logging in...');
 console.log('Attempting to log in to Discord...');
-client.login(process.env.DISCORD_TOKEN)
+
+const loginPromise = client.login(process.env.DISCORD_TOKEN.trim());
+const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Login operation timed out after 15 seconds')), 15000)
+);
+
+Promise.race([loginPromise, timeoutPromise])
     .then(() => console.log('Login promise resolved!'))
-    .catch(err => console.error('LOGIN ERROR:', err));
+    .catch(err => {
+        console.error('LOGIN ERROR:', err);
+        // Force exit so Render restarts the process
+        process.exit(1);
+    });
