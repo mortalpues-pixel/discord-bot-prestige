@@ -118,9 +118,13 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-const loginPromise = client.login(process.env.DISCORD_TOKEN.trim());
+const token = process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.trim() : '';
+console.log(`[DEBUG] Token length: ${token.length}`);
+console.log(`[DEBUG] Token starts with: ${token.substring(0, 5)}...`);
+
+const loginPromise = client.login(token);
 const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Login operation timed out after 15 seconds')), 15000)
+    setTimeout(() => reject(new Error('Login operation timed out after 30 seconds')), 30000)
 );
 
 Promise.race([loginPromise, timeoutPromise])
