@@ -1,13 +1,6 @@
 require('dotenv').config();
 const fs = require('node:fs');
 
-// Debug logging for environment variables
-console.log('--- ENV VARIABLE DEBUG ---');
-console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
-console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.length : 0);
-console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
-console.log('--------------------------');
-
 // Global error handling to prevent the bot from "turning off" on Render
 process.on('unhandledRejection', error => {
     console.error('Unhandled promise rejection:', error);
@@ -35,7 +28,7 @@ app.listen(PORT, () => {
     console.log(`Web server running on port ${PORT}`);
 });
 
-console.log('[Checkpoint 1] Initializing Discord Client...');
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -45,7 +38,7 @@ const client = new Client({
 
 
 client.commands = new Collection();
-console.log('[Checkpoint 2] Loading commands...');
+
 
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
@@ -64,7 +57,7 @@ for (const folder of commandFolders) {
     }
 }
 
-console.log('[Checkpoint 3] Commands loaded. Setting up events...');
+
 
 client.once(Events.ClientReady, async readyClient => {
     console.log(`Ready! Logged in as ${readyClient.user.tag}`);
@@ -125,16 +118,12 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-console.log('[Checkpoint 4] Events set up. Logging in...');
-console.log('Attempting to log in to Discord...');
-
 const loginPromise = client.login(process.env.DISCORD_TOKEN.trim());
 const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('Login operation timed out after 15 seconds')), 15000)
 );
 
 Promise.race([loginPromise, timeoutPromise])
-    .then(() => console.log('Login promise resolved!'))
     .catch(err => {
         console.error('LOGIN ERROR:', err);
         // Force exit so Render restarts the process
