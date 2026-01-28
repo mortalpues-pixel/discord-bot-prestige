@@ -72,6 +72,14 @@ client.on('error', error => {
     console.error('Discord.js client error:', error);
 });
 
+client.on('warn', warning => {
+    console.warn('Discord.js client warning:', warning);
+});
+
+client.on('debug', info => {
+    console.log(`[DISCORD DEBUG] ${info}`);
+});
+
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
