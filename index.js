@@ -130,14 +130,12 @@ const token = process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.trim() : '';
 console.log(`[DEBUG] Token length: ${token.length}`);
 console.log(`[DEBUG] Token starts with: ${token.substring(0, 5)}...`);
 
-const loginPromise = client.login(token);
-const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Login operation timed out after 30 seconds')), 30000)
-);
-
-Promise.race([loginPromise, timeoutPromise])
+const loginPromise = client.login(token)
+    .then(() => {
+        console.log('Login promise resolved! Bot should be online.');
+    })
     .catch(err => {
-        console.error('LOGIN ERROR:', err);
-        // Force exit so Render restarts the process
-        process.exit(1);
+        console.error('LOGIN ERROR (discord.js):', err);
+        // Force exit only on fatal errors
+        // process.exit(1); 
     });
