@@ -2,18 +2,7 @@ const { createCanvas, loadImage, registerFont } = require('canvas');
 const path = require('path');
 const config = require('../config.js');
 
-// Helper to determine rank name based on prestige
-function getRankName(prestige) {
-    if (prestige >= 1000) return 'Rey/Reina Imperial';
-    if (prestige >= 500) return 'Gran Duque';
-    if (prestige >= 250) return 'Marqués';
-    if (prestige >= 100) return 'Conde';
-    if (prestige >= 50) return 'Barón';
-    if (prestige >= 20) return 'Caballero';
-    return 'Ciudadano';
-}
-
-async function generateProfileCard(user, prestigeAmount, weeklyPrestige) {
+async function generateProfileCard(user, prestigeAmount, weeklyPrestige, customRankName) {
     // Canvas dimensions
     const width = 800;
     const height = 300;
@@ -92,10 +81,10 @@ async function generateProfileCard(user, prestigeAmount, weeklyPrestige) {
     ctx.fillText(user.username.toUpperCase(), textStartX, avatarY + 45);
 
     // Title / Rank (Gold)
-    const rankName = getRankName(prestigeAmount);
+    const cleanRankName = (customRankName || 'Ciudadano').replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
     ctx.font = 'italic 28px serif';
     ctx.fillStyle = '#FFD700'; // Gold
-    ctx.fillText(`Rango: ${rankName}`, textStartX, avatarY + 95);
+    ctx.fillText(`Role: ${cleanRankName}`, textStartX, avatarY + 95);
 
     // Total Prestige
     ctx.font = 'bold 36px sans-serif';

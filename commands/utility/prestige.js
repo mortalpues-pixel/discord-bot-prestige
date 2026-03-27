@@ -13,10 +13,26 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
         const targetUser = interaction.options.getUser('usuario') || interaction.user;
+        
+        let rankName = 'Ciudadano';
+        if (interaction.guild) {
+            try {
+                const targetMember = await interaction.guild.members.fetch(targetUser.id);
+                // Get highest role that is not everyone
+                const highestRole = targetMember.roles.cache
+                    .filter(r => r.name !== '@everyone')
+                    .sort((a, b) => b.position - a.position)
+                    .first();
+                if (highestRole) rankName = highestRole.name;
+            } catch (e) {
+                console.warn('Could not fetch member:', e.message);
+            }
+        }
+
         const userData = await db.getUserData(targetUser.id);
         try {
             const { generateProfileCard } = require('../../utils/cardGenerator.js');
-            const cardBuffer = await generateProfileCard(targetUser, userData.prestige, userData.weekly_prestige);
+            const cardBuffer = await generateProfileCard(targetUser, userData.prestige, userData.weekly_prestige, rankName);
             const attachment = new AttachmentBuilder(cardBuffer, { name: 'profile-card.png' });
             
             await interaction.editReply({ files: [attachment] });
