@@ -81,7 +81,7 @@ async function generateProfileCard(user, prestigeAmount, weeklyPrestige, customR
     ctx.fillText(user.username.toUpperCase(), textStartX, avatarY + 45, 480);
 
     // Title / Rank (Gold)
-    const cleanRankName = (customRankName || 'Ciudadano').replace(/[^\p{L}\p{N}\p{P}\p{Z}]/gu, '').trim();
+    const cleanRankName = (customRankName || 'Ciudadano').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s\-_.,()\[\]]/g, '').trim();
     ctx.font = 'italic 26px serif';
     ctx.fillStyle = '#FFD700'; // Gold
     ctx.fillText(cleanRankName, textStartX, avatarY + 95, 480);
