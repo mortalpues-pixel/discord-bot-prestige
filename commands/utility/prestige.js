@@ -30,9 +30,23 @@ module.exports = {
         }
 
         const userData = await db.getUserData(targetUser.id);
+        
+        // Load actual names for the medals
+        const allShopItems = await db.getShopItems();
+        if (userData.medals && userData.medals.length > 0) {
+            userData.medalDetails = userData.medals.map(emj => {
+                const item = allShopItems.find(i => i.type === 'medal' && i.emoji === emj);
+                return { 
+                    emoji: emj, 
+                    name: item ? item.name : 'Medalla', 
+                    color: (item && item.color) ? item.color : '#CCCCCC' 
+                };
+            });
+        }
+
         try {
             const { generateProfileCard } = require('../../utils/cardGenerator.js');
-            const cardBuffer = await generateProfileCard(targetUser, userData.prestige, userData.weekly_prestige, rankName);
+            const cardBuffer = await generateProfileCard(targetUser, rankName, userData);
             const attachment = new AttachmentBuilder(cardBuffer, { name: 'profile-card.png' });
             
             await interaction.editReply({ files: [attachment] });
@@ -47,7 +61,7 @@ module.exports = {
                     { name: '✨ Puntos Totales', value: `**${userData.prestige}**`, inline: true },
                     { name: '📅 Puntos Semanales', value: `**${userData.weekly_prestige}**`, inline: true }
                 );
-            await interaction.editReply({ content: '*(Modo ligero - error cargando tarjeta de imagen)*', embeds: [embed], files: [logo] });
+            await interaction.editReply({ content: `*(Modo ligero - error cargando tarjeta de imagen: ${error.message})*`, embeds: [embed], files: [logo] });
         }
     },
 };
