@@ -3,9 +3,9 @@ const path = require('path');
 const config = require('../config.js');
 
 try {
-    registerFont(path.join(__dirname, '..', 'assets', 'Roboto-Regular.ttf'), { family: 'sans-serif' });
-    registerFont(path.join(__dirname, '..', 'assets', 'Roboto-Bold.ttf'), { family: 'sans-serif', weight: 'bold' });
-    registerFont(path.join(__dirname, '..', 'assets', 'Roboto-Regular.ttf'), { family: 'serif' });
+    registerFont(path.join(__dirname, '..', 'assets', 'Roboto-Regular.ttf'), { family: 'Roboto' });
+    registerFont(path.join(__dirname, '..', 'assets', 'Roboto-Bold.ttf'), { family: 'Roboto', weight: 'bold' });
+    registerFont(path.join(__dirname, '..', 'assets', 'Roboto-Regular.ttf'), { family: 'Roboto' });
 } catch (e) {
     console.warn('Alerta: No se pudieron cargar las fuentes personalizadas para Canvas.', e);
 }
@@ -89,12 +89,12 @@ async function generateProfileCard(user, customRankName, userData) {
     // Username (White)
     let nameFontSize = 44;
     const nameMaxWidth = 340;
-    ctx.font = `bold ${nameFontSize}px sans-serif`;
+    ctx.font = `bold ${nameFontSize}px Roboto`;
     
     // Dynamically reduce font size if name is too long (prevents the "squished" look)
     while (ctx.measureText(user.username.toUpperCase()).width > nameMaxWidth && nameFontSize > 28) {
         nameFontSize -= 2;
-        ctx.font = `bold ${nameFontSize}px sans-serif`;
+        ctx.font = `bold ${nameFontSize}px Roboto`;
     }
     
     ctx.fillStyle = '#FFFFFF';
@@ -108,23 +108,23 @@ async function generateProfileCard(user, customRankName, userData) {
     
     let rankFontSize = 26;
     const rankMaxWidth = 340;
-    ctx.font = `${rankFontSize}px sans-serif`;
+    ctx.font = `${rankFontSize}px Roboto`;
     
     // Also scale rank font size if needed
     while (ctx.measureText(cleanRankName || 'Ciudadano').width > rankMaxWidth && rankFontSize > 18) {
         rankFontSize -= 1;
-        ctx.font = `${rankFontSize}px sans-serif`;
+        ctx.font = `${rankFontSize}px Roboto`;
     }
     
     ctx.fillStyle = '#FFD700'; // Gold
     ctx.fillText(cleanRankName || 'Ciudadano', textStartX, avatarY + 95, rankMaxWidth);
 
     // Total Prestige
-    ctx.font = 'bold 36px sans-serif';
+    ctx.font = 'bold 36px Roboto';
     ctx.fillStyle = '#FFFFFF';
     ctx.fillText('Prestigio:', textStartX, avatarY + 155);
     
-    ctx.font = 'bold 36px sans-serif';
+    ctx.font = 'bold 36px Roboto';
     ctx.fillStyle = '#DAA520'; // Distinct gold
     // Calculate width of "Prestigio: " to place the number right after it
     const labelWidth = ctx.measureText('Prestigio: ').width;
@@ -132,13 +132,13 @@ async function generateProfileCard(user, customRankName, userData) {
     ctx.fillText(prestigeAmount.toString(), textStartX + labelWidth, avatarY + 155);
 
     if (userData && userData.multiplier_uses && userData.multiplier_uses > 0) {
-        ctx.font = 'bold 24px sans-serif';
+        ctx.font = 'bold 24px Roboto';
         ctx.fillStyle = '#FFA500'; 
         ctx.fillText(`⚡ x${userData.multiplier_value} (${userData.multiplier_uses} usos)`, textStartX + labelWidth + valWidth + 20, avatarY + 153);
     }
 
     // Weekly Prestige (smaller)
-    ctx.font = '22px sans-serif';
+    ctx.font = '22px Roboto';
     ctx.fillStyle = '#AAAAAA';
     ctx.fillText(`Ganancia Semanal: +${weeklyPrestige}`, textStartX, avatarY + 195);
 
@@ -148,7 +148,7 @@ async function generateProfileCard(user, customRankName, userData) {
         
         userData.medalDetails.slice(0, 4).forEach((medal) => {
             // Draw Name
-            ctx.font = 'bold 18px sans-serif';
+            ctx.font = 'bold 18px Roboto';
             ctx.fillStyle = medal.color || '#CCCCCC';
             let mName = medal.name;
             if (mName.length > 20) mName = mName.substring(0, 18) + '...';
@@ -160,7 +160,7 @@ async function generateProfileCard(user, customRankName, userData) {
             let nameWidth = ctx.measureText(mName).width;
             
             // Draw Emoji
-            ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+            ctx.font = '24px "Segoe UI Emoji", "Apple Color Emoji", Roboto';
             ctx.fillText(medal.emoji, width - 30 - nameWidth - 10, medalY);
             
             medalY += 35; // Row spacing
@@ -200,19 +200,19 @@ async function generateLeaderboardCard(topUsers) {
 
     // Header
     const crownIcon = '♔';
-    ctx.font = '50px serif';
+    ctx.font = '50px Roboto';
     ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'center';
     ctx.fillText(`${crownIcon} RANKING SEMANAL ${crownIcon}`, width / 2, 70);
     
-    ctx.font = '22px sans-serif';
+    ctx.font = '22px Roboto';
     ctx.fillStyle = '#AAAAAA';
     ctx.fillText('Los miembros más prestigiosos de esta semana', width / 2, 110);
     ctx.textAlign = 'left';
 
     // Draw Users
     if (topUsers.length === 0) {
-        ctx.font = 'italic 30px sans-serif';
+        ctx.font = 'italic 30px Roboto';
         ctx.fillStyle = '#888888';
         ctx.textAlign = 'center';
         ctx.fillText('Nadie ha ganado prestigio esta semana todavía.', width / 2, height / 2 + 20);
@@ -229,7 +229,7 @@ async function generateLeaderboardCard(topUsers) {
         else if (i === 2) rankColor = '#CD7F32'; // Bronze
 
         // Rank Number
-        ctx.font = 'bold 42px sans-serif';
+        ctx.font = 'bold 42px Roboto';
         ctx.fillStyle = rankColor;
         ctx.fillText(`#${i + 1}`, 30, yOffset + 65);
 
@@ -265,12 +265,12 @@ async function generateLeaderboardCard(topUsers) {
         let cleanName = normalizedName.replace(/[^\x20-\x7EáéíóúÁÉÍÓÚñÑüÜ¡!¿?]/g, '').trim();
         if (!cleanName) cleanName = 'Usuario';
         
-        ctx.font = 'bold 30px sans-serif';
+        ctx.font = 'bold 30px Roboto';
         ctx.fillStyle = '#FFFFFF';
         ctx.fillText(cleanName.toUpperCase(), 210, yOffset + 50);
 
         // Prestige Score
-        ctx.font = 'bold 36px sans-serif';
+        ctx.font = 'bold 36px Roboto';
         ctx.fillStyle = '#DAA520'; // Distinct gold
         ctx.textAlign = 'right';
         ctx.fillText(`+${prestige} pts`, width - 30, yOffset + 60);
