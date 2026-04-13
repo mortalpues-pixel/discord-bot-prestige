@@ -5,6 +5,7 @@ const Submission = require('./models/Submission');
 const Event = require('./models/Event');
 const Counter = require('./models/Counter');
 const PrestigeLog = require('./models/PrestigeLog');
+const ShopItem = require('./models/ShopItem');
 
 // Initialize DB
 async function initDb() {
@@ -89,10 +90,17 @@ const addUserPrestige = async (userId, amount, reason = "Unknown", adminId = "SY
 
     await checkWeeklyReset(user);
 
-    user.prestige += amount;
-    user.weekly_prestige += amount;
+    let actualAmount = amount;
+    // Apply multiplier if gaining prestige and has active multiplier
+    if (amount > 0 && user.multiplier_uses && user.multiplier_uses > 0) {
+        const mult = user.multiplier_value || 1;
+        actualAmount = Math.floor(amount * mult);
+        user.multiplier_uses -= 1;
+    }
 
-    await user.save();
+    user.prestige += actualAmount;
+    user.weekly_prestige += actualAmount;
+
     await user.save();
 
     // Log the transaction
@@ -100,8 +108,8 @@ const addUserPrestige = async (userId, amount, reason = "Unknown", adminId = "SY
         await PrestigeLog.create({
             targetUserId: userId,
             adminId: adminId,
-            amount: amount,
-            reason: reason,
+            amount: actualAmount,
+            reason: reason + (actualAmount !== amount ? ` (Multiplicador x${user.multiplier_value})` : ''),
             timestamp: new Date()
         });
     } catch (err) {
@@ -290,6 +298,81 @@ const getWeeklyLeaderboard = async () => {
     return validUsers.slice(0, 10);
 };
 
+// --- SHOP SYSTEM ---
+
+const addShopItem = async (data) => {
+    const item = new ShopItem(data);
+    await item.save();
+    return item;
+};
+
+const getShopItems = async () => {
+    return await ShopItem.find({});
+};
+
+const getVisibleShopItems = async () => {
+    return await ShopItem.find({ isVisible: true });
+};
+
+
+const getShopItem = async (itemId) => {
+    return await ShopItem.findOne({ itemId });
+};
+
+const deleteShopItem = async (itemId) => {
+    await ShopItem.deleteOne({ itemId });
+};
+
+const updateShopItemVisibility = async (itemId, isVisible) => {
+    await ShopItem.findOneAndUpdate({ itemId }, { isVisible });
+};
+
+
+const buyShopItem = async (userId, itemId) => {
+    const item = await ShopItem.findOne({ itemId });
+    if (!item) return { success: false, reason: 'Item no encontrado' };
+
+    let user = await User.findOne({ userId });
+    if (!user) user = new User({ userId });
+
+    await checkWeeklyReset(user);
+
+    if (user.prestige < item.price) {
+        return { success: false, reason: 'No tienes suficiente prestigio para comprar esto.' };
+    }
+
+    if (item.stock !== null && item.stock !== undefined) {
+        if (item.stock <= 0) {
+            return { success: false, reason: 'Este objeto está agotado (Sin stock).' };
+        }
+    }
+
+    if (item.type === 'medal') {
+        if (!user.medals) user.medals = [];
+        if (user.medals.includes(item.emoji)) {
+            return { success: false, reason: 'Ya tienes esta medalla equipada.' };
+        }
+    }
+
+    // Process Purchase
+    user.prestige -= item.price;
+
+    if (item.type === 'multiplier') {
+        user.multiplier_value = item.multiplier_value;
+        user.multiplier_uses = item.multiplier_uses;
+    } else if (item.type === 'medal') {
+        user.medals.push(item.emoji);
+    }
+
+    if (item.stock !== null && item.stock !== undefined) {
+        item.stock -= 1;
+        await item.save();
+    }
+
+    await user.save();
+    return { success: true, item };
+};
+
 module.exports = {
     initDb,
     addUserPrestige,
@@ -310,7 +393,13 @@ module.exports = {
     getEventAttendees,
     addWarning,
     getWarnings,
-    getWarnings,
     getWeeklyLeaderboard,
-    getPrestigeLogs
+    getPrestigeLogs,
+    addShopItem,
+    getShopItems,
+    getVisibleShopItems,
+    getShopItem,
+    deleteShopItem,
+    updateShopItemVisibility,
+    buyShopItem
 };

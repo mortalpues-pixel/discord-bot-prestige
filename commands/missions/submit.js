@@ -51,6 +51,6 @@ module.exports = {
 
         await db.addSubmission(interaction.user.id, activeMission.mission_key, proofUrls, missionReward);
 
-        await interaction.reply({ embeds: [createPremiumEmbed('✅ Entrega Recibida', `Se han recibido **${proofUrls.length}** capturas.\n\nTu prueba está pendiente de aprobación por el Alto Mando.`)], files: [logo], ephemeral: true });
+        await interaction.reply({ embeds: [createPremiumEmbed('✅ Entrega Recibida', `Se han recibido **${proofUrls.length}** capturas.\n\nTu prueba está pendiente de aprobación por la familia.`)], files: [logo], ephemeral: true });
     },
 };

@@ -32,7 +32,7 @@ module.exports = {
 
         const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
         if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-            const embed = createPremiumEmbed('❌ Error', 'No tienes permiso (Alto Mando) para usar esto.');
+            const embed = createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.');
             return interaction.reply({ embeds: [embed], files: [logo], ephemeral: true });
         }
 

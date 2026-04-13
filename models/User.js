@@ -5,6 +5,9 @@ const userSchema = new mongoose.Schema({
     prestige: { type: Number, default: 0 },
     weekly_prestige: { type: Number, default: 0 },
     last_weekly_reset: { type: Date, default: Date.now },
+    multiplier_value: { type: Number, default: 1 },
+    multiplier_uses: { type: Number, default: 0 },
+    medals: [{ type: String }],
     warnings: [{
         reason: { type: String, required: true },
         moderator: { type: String, required: true },

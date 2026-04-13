@@ -17,7 +17,7 @@ module.exports = {
 
         const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
         if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No tienes permiso (Alto Mando) para usar esto.')], files: [logo], ephemeral: true });
+            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
         }
 
         const targetUser = interaction.options.getUser('usuario');
@@ -25,7 +25,7 @@ module.exports = {
         await db.resetUserPrestige(targetUser.id);
 
         const embed = createPremiumEmbed('🗑️ Prestigio Borrado', `El prestigio de <@${targetUser.id}> ha sido reseteado a **0**.`)
-            .setFooter({ text: 'Acción realizada por un Alto Mando.' });
+            .setFooter({ text: 'Acción realizada por un Autorizado.' });
 
         await interaction.reply({ embeds: [embed], files: [logo] });
     },

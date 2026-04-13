@@ -1,6 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const db = require('../../database.js');
 const { createPremiumEmbed } = require('../../utils/embeds.js');
+const { generateLeaderboardCard } = require('../../utils/cardGenerator.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -13,34 +14,40 @@ module.exports = {
         const userData = await db.getUserData(interaction.user.id);
         const myRank = leaderboard.findIndex(u => u.userId === interaction.user.id) + 1;
 
-        let description = 'Los usuarios con más prestigio obtenido esta semana (reinicia el Lunes).\n\n';
-
-        if (leaderboard.length === 0) {
-            description += '_Nadie ha ganado prestigio esta semana todavía._';
-        } else {
-            leaderboard.forEach((user, index) => {
-                let medal = '';
-                if (index === 0) medal = '🥇 ';
-                if (index === 1) medal = '🥈 ';
-                if (index === 2) medal = '🥉 ';
-                if (index > 2) medal = `**${index + 1}.** `;
-
-                description += `${medal}<@${user.userId}> — **${user.weekly_prestige}** pts\n`;
-            });
-        }
-
-        description += '\n━━━━━━━━━━━━━━━━━━━━━━\n';
+        // Keep personal rank textual content
+        let description = '';
         if (myRank > 0) {
-            description += `**Tu posición:** #${myRank} — **${userData.weekly_prestige}** pts`;
+            description += `**Tu posición en el ranking:** #${myRank} — **${userData.weekly_prestige}** pts`;
         } else {
-            description += `**Tu posición:** — (0 pts esta semana)`;
+            description += `**Tu posición en el ranking:** — (0 pts esta semana)`;
         }
 
         const embed = createPremiumEmbed('🏆 Ranking Semanal', description);
-
-        // Optional: Add footer explaining the reset
         embed.setFooter({ text: 'El prestigio semanal se reinicia automáticamente cada Lunes.' });
 
-        return interaction.editReply({ embeds: [embed] });
+        const top5 = leaderboard.slice(0, 5);
+        const topUsersData = [];
+
+        for (const entry of top5) {
+            try {
+                const userObj = await interaction.client.users.fetch(entry.userId);
+                topUsersData.push({ user: userObj, prestige: entry.weekly_prestige });
+            } catch (e) {
+                console.warn(`Could not fetch user ${entry.userId}:`, e.message);
+            }
+        }
+
+        try {
+            const cardBuffer = await generateLeaderboardCard(topUsersData);
+            const attachment = new AttachmentBuilder(cardBuffer, { name: 'leaderboard.png' });
+            
+            embed.setImage('attachment://leaderboard.png');
+            return interaction.editReply({ embeds: [embed], files: [attachment] });
+        } catch (err) {
+            console.error('Error generating leaderboard image:', err);
+            // Fallback if canvas fails
+            embed.setDescription(description + '\n\n*(Error cargando la imagen del top visual)*');
+            return interaction.editReply({ embeds: [embed] });
+        }
     },
 };

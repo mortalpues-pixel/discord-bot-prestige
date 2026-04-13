@@ -5,7 +5,7 @@ const { createPremiumEmbed } = require('../../utils/embeds.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('prestigio-dar')
-        .setDescription('Otorga puntos de prestigio a un usuario (Solo Alto Mando).')
+        .setDescription('Otorga puntos de prestigio a un usuario (Solo Autorizados).')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addUserOption(option =>
             option.setName('usuario')
@@ -26,7 +26,7 @@ module.exports = {
         const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
         if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
             return interaction.editReply({
-                embeds: [createPremiumEmbed('❌ Acceso Denegado', 'No tienes permisos de Alto Mando para usar este comando.')],
+                embeds: [createPremiumEmbed('❌ Acceso Denegado', 'No estás autorizado por la familia.')],
                 ephemeral: true
             });
         }

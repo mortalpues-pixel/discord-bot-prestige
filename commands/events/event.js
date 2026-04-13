@@ -22,7 +22,7 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('participantes')
-                .setDescription('Ver lista de participantes (Alto Mando)')
+                .setDescription('Ver lista de participantes (Autorizados)')
                 .addIntegerOption(option => option.setName('id').setDescription('ID del evento (opcional, por defecto el último)').setRequired(false))),
     async execute(interaction) {
         const logo = new AttachmentBuilder(config.branding.logoPath);
@@ -33,7 +33,7 @@ module.exports = {
         if (subcommand === 'anunciar') {
             const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
             if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No tienes permiso para anunciar eventos.')], files: [logo], ephemeral: true });
+                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
             }
 
             const title = interaction.options.getString('titulo');
@@ -57,7 +57,7 @@ module.exports = {
         } else if (subcommand === 'participantes') {
             const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
             if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No tienes permiso para ver los participantes.')], files: [logo], ephemeral: true });
+                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
             }
 
             let eventId = interaction.options.getInteger('id');

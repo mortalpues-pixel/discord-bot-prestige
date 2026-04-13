@@ -23,9 +23,13 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
         const targetUser = interaction.options.getUser('usuario');
 
-        // Check High Command Role if strictly needed, but DefaultMemberPermissions handles Discord perms.
-        // We can add the role check if the user wants it strictly restricted to "Alto Mando" role ID in .env
-        // For now, ManageMessages permission is a good default for mods.
+        const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
+        if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
+            return interaction.editReply({
+                embeds: [createPremiumEmbed('❌ Acceso Denegado', 'No estás autorizado por la familia.')],
+                ephemeral: true
+            });
+        }
 
         if (subcommand === 'dar') {
             const reason = interaction.options.getString('razon');
