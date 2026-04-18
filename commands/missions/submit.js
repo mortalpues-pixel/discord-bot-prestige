@@ -27,6 +27,16 @@ module.exports = {
             return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No hay misión activa para entregar.')], files: [logo], ephemeral: true });
         }
 
+        // Check for duplicate submission
+        const alreadySubmitted = await db.hasUserSubmitted(interaction.user.id, activeMission.mission_key);
+        if (alreadySubmitted) {
+            return interaction.reply({ 
+                embeds: [createPremiumEmbed('⚠️ Aviso', 'Ya has enviado una prueba para esta misión o ya ha sido aprobada.')], 
+                files: [logo], 
+                ephemeral: true 
+            });
+        }
+
         const attachments = [];
         const prueba1 = interaction.options.getAttachment('prueba');
         if (prueba1) attachments.push(prueba1);

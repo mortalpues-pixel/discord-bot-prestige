@@ -172,12 +172,25 @@ const addSubmission = async (userId, missionKey, proofContent, rewardSnapshot = 
     return saved.id;
 };
 
+const hasUserSubmitted = async (userId, missionKey) => {
+    // Check if there is any pending or approved submission for this user and mission
+    const existing = await Submission.findOne({
+        user_id: userId,
+        mission_key: missionKey,
+        status: { $in: ['pending', 'approved'] }
+    });
+    return !!existing;
+};
+
 const getPendingSubmissions = async () => {
     return await Submission.find({ status: 'pending' });
 };
 
-const updateSubmissionStatus = async (submissionId, status) => {
-    await Submission.findOneAndUpdate({ id: submissionId }, { status });
+const updateSubmissionStatus = async (submissionId, status, expectedStatus = null) => {
+    const query = { id: submissionId };
+    if (expectedStatus) query.status = expectedStatus;
+    
+    return await Submission.findOneAndUpdate(query, { status }, { new: true });
 };
 
 const getSubmission = async (submissionId) => {
@@ -210,21 +223,20 @@ const getEvent = async (eventId) => {
     return await Event.findOne({ id: eventId });
 };
 
-const updateEventStatus = async (eventId, status) => {
-    const res = await Event.findOneAndUpdate({ id: eventId }, { status });
+const updateEventStatus = async (eventId, status, expectedStatus = null) => {
+    const query = { id: eventId };
+    if (expectedStatus) query.status = expectedStatus;
+
+    const res = await Event.findOneAndUpdate(query, { status }, { new: true });
     return !!res;
 };
 
 const registerForEvent = async (eventId, userId) => {
-    const event = await Event.findOne({ id: eventId });
-    if (!event) return false;
-
-    // Check if already registered
-    if (event.attendees.includes(userId)) return false;
-
-    event.attendees.push(userId);
-    await event.save();
-    return true;
+    const res = await Event.updateOne(
+        { id: eventId },
+        { $addToSet: { attendees: userId } }
+    );
+    return res.modifiedCount > 0;
 };
 
 const getEventAttendees = async (eventId) => {
@@ -382,6 +394,7 @@ module.exports = {
     setActiveMission,
     getActiveMission,
     addSubmission,
+    hasUserSubmitted,
     getPendingSubmissions,
     updateSubmissionStatus,
     getSubmission,

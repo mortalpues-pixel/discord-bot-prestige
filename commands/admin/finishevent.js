@@ -34,13 +34,18 @@ module.exports = {
         const attendees = await db.getEventAttendees(eventId);
         const reward = event.reward || 0;
 
+        // Attempt to close the event atomically to prevent double rewards
+        const success = await db.updateEventStatus(eventId, 'closed', 'open');
+        
+        if (!success) {
+            return interaction.reply({ embeds: [createPremiumEmbed('⚠️ Aviso', 'Este evento ya ha sido finalizado por otro proceso.')], files: [logo], ephemeral: true });
+        }
+
         if (attendees.length === 0) {
-            await db.updateEventStatus(eventId, 'closed');
             return interaction.reply({ embeds: [createPremiumEmbed('🏁 Evento Finalizado', 'El evento se cerró, pero no había participantes registrados.')], files: [logo] });
         }
 
         if (reward === 0) {
-            await db.updateEventStatus(eventId, 'closed');
             return interaction.reply({ embeds: [createPremiumEmbed('🏁 Evento Finalizado', `Evento finalizado con **${attendees.length}** participantes.\nNo había recompensa configurada.`)], files: [logo] });
         }
 
@@ -50,8 +55,6 @@ module.exports = {
             await db.addUserPrestige(userId, reward, `Evento: ${event.title}`, interaction.user.id);
             count++;
         }
-
-        await db.updateEventStatus(eventId, 'closed');
 
         const embed = createPremiumEmbed('🏁 Evento Finalizado', `Se han repartido recompensas a **${count}** participantes.`)
             .addFields(

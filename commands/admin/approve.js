@@ -78,29 +78,40 @@ module.exports = {
             }
 
             if (subcommand === 'confirmar') {
-                let reward = submission.reward_snapshot || 0;
+                // Attempt to update status atomically to prevent double processing
+                const updatedSubmission = await db.updateSubmissionStatus(id, 'approved', 'pending');
+                
+                if (!updatedSubmission) {
+                    const embed = createPremiumEmbed('⚠️ Aviso', `Esta entrega ya ha sido procesada o no está pendiente.`);
+                    return interaction.reply({ embeds: [embed], files: [logo], ephemeral: true });
+                }
+
+                let reward = updatedSubmission.reward_snapshot || 0;
 
                 // Fallback for old submissions without snapshot
                 if (!reward) {
-                    const mission = config.missions.find(m => m.key === submission.mission_key);
+                    const mission = config.missions.find(m => m.key === updatedSubmission.mission_key);
                     reward = mission ? mission.reward : 10;
                 }
 
-                await db.addUserPrestige(submission.user_id, reward, `Misión Aprobada: ${submission.mission_key}`, interaction.user.id);
-                await db.updateSubmissionStatus(id, 'approved');
+                await db.addUserPrestige(updatedSubmission.user_id, reward, `Misión Aprobada: ${updatedSubmission.mission_key}`, interaction.user.id);
 
                 try {
-                    const user = await interaction.client.users.fetch(submission.user_id);
+                    const user = await interaction.client.users.fetch(updatedSubmission.user_id);
                     const dmEmbed = createPremiumEmbed('✅ Misión Aprobada', `Has ganado **${reward}** puntos de prestigio.`);
                     await user.send({ embeds: [dmEmbed], files: [logo] });
                 } catch (e) {
                     console.log('No se pudo enviar DM al usuario.');
                 }
 
-                const embed = createPremiumEmbed('✅ Aprobado', `Entrega **#${id}** aprobada.\nSe han otorgado **${reward}** puntos a <@${submission.user_id}>.`);
+                const embed = createPremiumEmbed('✅ Aprobado', `Entrega **#${id}** aprobada.\nSe han otorgado **${reward}** puntos a <@${updatedSubmission.user_id}>.`);
                 return interaction.reply({ embeds: [embed], files: [logo] });
             } else {
-                await db.updateSubmissionStatus(id, 'rejected');
+                const updatedSubmission = await db.updateSubmissionStatus(id, 'rejected', 'pending');
+                if (!updatedSubmission) {
+                    const embed = createPremiumEmbed('⚠️ Aviso', `Esta entrega ya ha sido procesada o no está pendiente.`);
+                    return interaction.reply({ embeds: [embed], files: [logo], ephemeral: true });
+                }
                 const embed = createPremiumEmbed('❌ Rechazado', `Entrega **#${id}** rechazada.`);
                 return interaction.reply({ embeds: [embed], files: [logo] });
             }
