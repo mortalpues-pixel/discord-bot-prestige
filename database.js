@@ -172,13 +172,20 @@ const addSubmission = async (userId, missionKey, proofContent, rewardSnapshot = 
     return saved.id;
 };
 
-const hasUserSubmitted = async (userId, missionKey) => {
+const hasUserSubmitted = async (userId, missionKey, missionDateSet) => {
     // Check if there is any pending or approved submission for this user and mission
-    const existing = await Submission.findOne({
+    const query = {
         user_id: userId,
         mission_key: missionKey,
         status: { $in: ['pending', 'approved'] }
-    });
+    };
+    
+    // Only block if the submission was made AFTER the current mission was started
+    if (missionDateSet) {
+        query.timestamp = { $gte: missionDateSet };
+    }
+
+    const existing = await Submission.findOne(query);
     return !!existing;
 };
 

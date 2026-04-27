@@ -28,7 +28,7 @@ module.exports = {
         }
 
         // Check for duplicate submission
-        const alreadySubmitted = await db.hasUserSubmitted(interaction.user.id, activeMission.mission_key);
+        const alreadySubmitted = await db.hasUserSubmitted(interaction.user.id, activeMission.mission_key, activeMission.date_set);
         if (alreadySubmitted) {
             return interaction.reply({ 
                 embeds: [createPremiumEmbed('⚠️ Aviso', 'Ya has enviado una prueba para esta misión o ya ha sido aprobada.')], 
