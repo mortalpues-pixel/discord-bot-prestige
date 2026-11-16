@@ -1,32 +1,52 @@
-const { SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, InteractionContextType, MessageFlags
+} = require('discord.js');
 const db = require('../../database.js');
-const config = require('../../config.js');
-const { createPremiumEmbed } = require('../../utils/embeds.js');
+const { isHighCommand } = require('../../utils/permissions.js');
+const { createCrownEmbed, sendCourtDM } = require('../../utils/embeds.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('borrar-prestigio')
-        .setDescription('Resetea el prestigio de un usuario a 0.')
+        .setDescription('Restablece a 0 el prestigio de un miembro.')
+        .setContexts(InteractionContextType.Guild)
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addUserOption(option =>
             option.setName('usuario')
-                .setDescription('El usuario al que borrar el prestigio')
+                .setDescription('Miembro cuyo prestigio se restablecerá')
                 .setRequired(true)),
-    async execute(interaction) {
-        const logo = new AttachmentBuilder(config.branding.logoPath);
 
-        const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
-        if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
+    async execute(interaction) {
+        if (!isHighCommand(interaction.member)) {
+            return interaction.reply({
+                embeds: [createCrownEmbed({
+                    title: 'Acceso Denegado',
+                    description: 'No estás autorizado por la Corte.',
+                    tone: 'burgundy'
+                })],
+                flags: MessageFlags.Ephemeral
+            });
         }
 
-        const targetUser = interaction.options.getUser('usuario');
+        await interaction.deferReply();
 
-        await db.resetUserPrestige(targetUser.id);
+        const targetUser = interaction.options.getUser('usuario', true);
+        await db.resetUserPrestige(targetUser.id, interaction.user.id);
 
-        const embed = createPremiumEmbed('🗑️ Prestigio Borrado', `El prestigio de <@${targetUser.id}> ha sido reseteado a **0**.`)
-            .setFooter({ text: 'Acción realizada por un Autorizado.' });
+        const embed = createCrownEmbed({
+            title: 'Prestigio Restablecido',
+            description: `El prestigio total y semanal de <@${targetUser.id}> ha sido restablecido a **0**.`,
+            tone: 'burgundy',
+            footer: `Ejecutado por ${interaction.user.tag}`
+        });
 
-        await interaction.reply({ embeds: [embed], files: [logo] });
-    },
+        await interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
+
+        await sendCourtDM(targetUser, {
+            title: 'Prestigio Restablecido',
+            description: 'Tu saldo de prestigio total y semanal ha sido restablecido a **0** por orden del Alto Mando.',
+            tone: 'burgundy',
+            footer: `Emitido por ${interaction.user.tag}`
+        });
+    }
 };

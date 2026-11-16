@@ -1,12 +1,15 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const db = require('../../database.js');
-const { createPremiumEmbed } = require('../../utils/embeds.js');
-const { generateLeaderboardCard } = require('../../utils/cardGenerator.js');
+const { createCrownEmbed } = require('../../utils/embeds.js');
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('semanal')
-        .setDescription('Muestra la tabla de clasificación de prestigio semanal.'),
+        .setDescription('Muestra el escalafón semanal de mérito.')
+        .setContexts(InteractionContextType.Guild),
+
     async execute(interaction) {
         await interaction.deferReply();
 
@@ -14,40 +17,23 @@ module.exports = {
         const userData = await db.getUserData(interaction.user.id);
         const myRank = leaderboard.findIndex(u => u.userId === interaction.user.id) + 1;
 
-        // Keep personal rank textual content
-        let description = '';
-        if (myRank > 0) {
-            description += `**Tu posición en el ranking:** #${myRank} — **${userData.weekly_prestige}** pts`;
-        } else {
-            description += `**Tu posición en el ranking:** — (0 pts esta semana)`;
-        }
+        const lines = leaderboard.length > 0
+            ? leaderboard.slice(0, 10).map((entry, idx) =>
+                `**${ROMAN[idx] || idx + 1}.** <@${entry.userId}> \u2014 **+${entry.weekly_prestige}** pts`
+            )
+            : ['*Aún no se han registrado méritos en la presente semana.*'];
 
-        const embed = createPremiumEmbed('🏆 Ranking Semanal', description);
-        embed.setFooter({ text: 'El prestigio semanal se reinicia automáticamente cada Lunes.' });
+        const personalLine = myRank > 0
+            ? `Tu posición: **#${myRank}** \u00B7 **+${userData.weekly_prestige}** pts`
+            : 'Tu posición: sin méritos esta semana.';
 
-        const top5 = leaderboard.slice(0, 5);
-        const topUsersData = [];
+        const embed = createCrownEmbed({
+            title: 'Escalafón Semanal de Mérito',
+            description: [...lines, '', personalLine].join('\n'),
+            tone: 'gold',
+            footer: 'Reinicio semanal cada lunes (UTC)'
+        });
 
-        for (const entry of top5) {
-            try {
-                const userObj = await interaction.client.users.fetch(entry.userId);
-                topUsersData.push({ user: userObj, prestige: entry.weekly_prestige });
-            } catch (e) {
-                console.warn(`Could not fetch user ${entry.userId}:`, e.message);
-            }
-        }
-
-        try {
-            const cardBuffer = await generateLeaderboardCard(topUsersData);
-            const attachment = new AttachmentBuilder(cardBuffer, { name: 'leaderboard.png' });
-            
-            embed.setImage('attachment://leaderboard.png');
-            return interaction.editReply({ embeds: [embed], files: [attachment] });
-        } catch (err) {
-            console.error('Error generating leaderboard image:', err);
-            // Fallback if canvas fails
-            embed.setDescription(description + '\n\n*(Error cargando la imagen del top visual)*');
-            return interaction.editReply({ embeds: [embed] });
-        }
-    },
+        return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
+    }
 };

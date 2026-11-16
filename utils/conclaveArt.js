@@ -815,4 +815,95 @@ async function renderVerdict({ candidateName, avatarUrl, white, black, seats, ne
     return finish(s);
 }
 
-module.exports = { renderSummons, renderBall, renderVerdict };
+/* ------------------------------------------------------------------ */
+/* 4) Cédula de prestigio (/prestigio)                                 */
+/* ------------------------------------------------------------------ */
+async function renderProfileCard({ displayName, rankName, avatarUrl, prestige, weeklyPrestige } = {}) {
+    const W = 960, H = 340;
+    const name = cleanText(displayName, 'Miembro de la Corte');
+    const strippedRank = cleanText(rankName, '', 60)
+        .replace(/\[\s*\]|\(\s*\)|\{\s*\}|「\s*」/g, '')
+        .replace(/^[\s|·\u2014:-]+|[\s|·\u2014:-]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const cleanRank = strippedRank || 'Ciudadano';
+    const nPrestige = toInt(prestige, 0);
+    const nWeekly = Math.trunc(Number(weeklyPrestige) || 0);
+
+    const [avatar, sealMask] = await Promise.all([safeLoadAvatar(avatarUrl), prepareSealMask()]);
+
+    const s = makeSurface(W, H);
+    const ctx = s.ctx;
+    ctx.textBaseline = 'alphabetic';
+    paintVelvet(ctx, W, H, { x: 0.25, y: 0.45 });
+
+    // doble filete en oro viejo con rombos en las esquinas
+    hairRect(ctx, 18.5, 18.5, W - 37, H - 37, rgba(COL.gold, 0.65), 1.25);
+    hairRect(ctx, 25.5, 25.5, W - 51, H - 51, rgba(COL.gold, 0.22), 0.75);
+    for (const [x, y] of [[18.5, 18.5], [W - 18.5, 18.5], [18.5, H - 18.5], [W - 18.5, H - 18.5]]) {
+        ctx.save();
+        ctx.fillStyle = COL.obsidian;
+        ctx.fillRect(x - 4.5, y - 4.5, 9, 9);
+        ctx.restore();
+        diamond(ctx, x, y, 3.8, COL.gold);
+    }
+
+    const L = 64, R = W - 64;
+
+    // cabecera
+    ctx.fillStyle = COL.gold;
+    ctx.font = fontStack('600', 19);
+    drawTracked(ctx, 'C\u00c9DULA DE PRESTIGIO', L, 66, 7);
+
+    ctx.fillStyle = COL.smoke;
+    ctx.font = fontStack('500', 18);
+    drawTracked(ctx, 'CASA HELMREICH', R, 66, 4, 'right');
+
+    hline(ctx, L, R, 82, rgba(COL.gold, 0.4), 0.75);
+
+    // bloque central: avatar, identidad y sello
+    const AR = 68, ACX = 148, ACY = 206;
+    drawAvatar(ctx, avatar, ACX, ACY, AR, name, COL.gold);
+
+    const sealR = 42, sealCX = W - 92, sealCY = 162;
+    drawSeal(ctx, sealCX, sealCY, sealR, sealMask);
+
+    const TX = ACX + AR + 6 + 38;
+    const maxNameW = sealCX - sealR - 32 - TX;
+
+    const nameFit = fitText(ctx, name, '600', 54, 28, maxNameW, 1.5);
+    ctx.fillStyle = COL.ivory;
+    ctx.font = fontStack('600', nameFit.size);
+    drawTracked(ctx, nameFit.text, TX, 152, nameFit.sp);
+
+    const rankFit = fitText(ctx, cleanRank, '500', 26, 17, maxNameW, 3);
+    ctx.fillStyle = COL.gold;
+    ctx.font = fontStack('500', rankFit.size);
+    drawTracked(ctx, rankFit.text, TX, 192, rankFit.sp);
+
+    // bloque inferior de métricas
+    hline(ctx, TX, W - 60, 216, rgba(COL.gold, 0.3), 0.75);
+
+    ctx.fillStyle = COL.smoke;
+    ctx.font = fontStack('600', 15);
+    drawTracked(ctx, 'PRESTIGIO ACUMULADO', TX, 248, 2.5);
+
+    const col2X = TX + 340;
+    drawTracked(ctx, 'M\u00c9RITO SEMANAL', col2X, 248, 2.5);
+
+    const pText = String(nPrestige);
+    const pFit = fitText(ctx, pText, '600', 44, 28, 310, 1.5);
+    ctx.fillStyle = COL.ivory;
+    ctx.font = fontStack('600', pFit.size);
+    drawTracked(ctx, pFit.text, TX, 294, pFit.sp);
+
+    const wText = nWeekly >= 0 ? `+${nWeekly}` : `${nWeekly}`;
+    const wFit = fitText(ctx, wText, '600', 44, 28, (W - 60) - col2X, 1.5);
+    ctx.fillStyle = COL.gold;
+    ctx.font = fontStack('600', wFit.size);
+    drawTracked(ctx, wFit.text, col2X, 294, wFit.sp);
+
+    return finish(s);
+}
+
+module.exports = { renderSummons, renderBall, renderVerdict, renderProfileCard };

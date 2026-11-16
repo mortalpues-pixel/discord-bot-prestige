@@ -1,84 +1,104 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, InteractionContextType, MessageFlags
+} = require('discord.js');
 const db = require('../../database.js');
-const { createPremiumEmbed } = require('../../utils/embeds.js');
+const { isHighCommand } = require('../../utils/permissions.js');
+const { createCrownEmbed, sendCourtDM } = require('../../utils/embeds.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('advertencia')
-        .setDescription('Sistema de advertencias para usuarios.')
+        .setDescription('Registro disciplinario de la Corte.')
+        .setContexts(InteractionContextType.Guild)
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addSubcommand(subcommand =>
             subcommand
                 .setName('dar')
-                .setDescription('Da una advertencia a un usuario.')
-                .addUserOption(option => option.setName('usuario').setDescription('El usuario a advertir').setRequired(true))
-                .addStringOption(option => option.setName('razon').setDescription('La razón de la advertencia').setRequired(true)))
+                .setDescription('Registra una amonestación sobre un miembro.')
+                .addUserOption(option => option.setName('usuario').setDescription('Miembro a amonestar').setRequired(true))
+                .addStringOption(option => option.setName('razon').setDescription('Motivo de la amonestación').setRequired(true)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('ver')
-                .setDescription('Ver las advertencias de un usuario.')
-                .addUserOption(option => option.setName('usuario').setDescription('El usuario a consultar').setRequired(true))),
-    async execute(interaction) {
-        await interaction.deferReply();
-        const subcommand = interaction.options.getSubcommand();
-        const targetUser = interaction.options.getUser('usuario');
+                .setDescription('Consulta el historial disciplinario de un miembro.')
+                .addUserOption(option => option.setName('usuario').setDescription('Miembro a consultar').setRequired(true))),
 
-        const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
-        if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-            return interaction.editReply({
-                embeds: [createPremiumEmbed('❌ Acceso Denegado', 'No estás autorizado por la familia.')],
-                ephemeral: true
+    async execute(interaction) {
+        if (!isHighCommand(interaction.member)) {
+            return interaction.reply({
+                embeds: [createCrownEmbed({
+                    title: 'Acceso Denegado',
+                    description: 'No estás autorizado por la Corte.',
+                    tone: 'burgundy'
+                })],
+                flags: MessageFlags.Ephemeral
             });
         }
+
+        await interaction.deferReply();
+
+        const subcommand = interaction.options.getSubcommand();
+        const targetUser = interaction.options.getUser('usuario', true);
 
         if (subcommand === 'dar') {
-            const reason = interaction.options.getString('razon');
+            const reason = interaction.options.getString('razon', true);
+            const warningCount = await db.addWarning(targetUser.id, reason, interaction.user.id);
 
-            const warningCount = await db.addWarning(targetUser.id, reason, interaction.user.tag);
+            const embed = createCrownEmbed({
+                title: 'Amonestación Registrada',
+                description: `Se ha registrado una advertencia oficial sobre <@${targetUser.id}>.`,
+                tone: 'burgundy',
+                footer: `Emitida por ${interaction.user.tag}`
+            }).addFields(
+                { name: 'Motivo', value: reason },
+                { name: 'Total acumuladas', value: `**${warningCount}**`, inline: true }
+            );
 
-            // Try to DM the user
-            try {
-                const dmEmbed = createPremiumEmbed('⚠️ Advertencia Recibida', `Has recibido una advertencia en el servidor.`)
-                    .addFields(
-                        { name: 'Razón', value: reason },
-                        { name: 'Moderador', value: interaction.user.tag }
-                    )
-                    .setColor('#FF0000'); // Red
-                await targetUser.send({ embeds: [dmEmbed] });
-            } catch (e) {
-                console.log(`No se pudo enviar DM a ${targetUser.tag} sobre su advertencia.`);
-            }
+            await interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
 
-            const embed = createPremiumEmbed('⚠️ Advertencia Agregada', `Se ha advertido a <@${targetUser.id}>.`)
-                .addFields(
-                    { name: 'Razón', value: reason },
-                    { name: 'Total Advertencias', value: `${warningCount}` }
-                );
-
-            return interaction.editReply({ embeds: [embed] });
-
-        } else if (subcommand === 'ver') {
-            const warnings = await db.getWarnings(targetUser.id);
-
-            if (warnings.length === 0) {
-                const embed = createPremiumEmbed('✅ Limpio', `<@${targetUser.id}> no tiene advertencias.`);
-                return interaction.editReply({ embeds: [embed] });
-            }
-
-            const embed = createPremiumEmbed('⚠️ Historial de Advertencias', `Usuario: <@${targetUser.id}> - Total: ${warnings.length}`);
-
-            // Limit to last 10 warnings to fit in embed fields
-            const recentWarnings = warnings.slice(-10).reverse();
-
-            recentWarnings.forEach((w, i) => {
-                const dateStr = new Date(w.date).toLocaleDateString('es-ES');
-                embed.addFields({
-                    name: `Advertencia #${warnings.length - i} - ${dateStr}`,
-                    value: `**Razón:** ${w.reason}\n**Mod:** ${w.moderator}`
-                });
+            await sendCourtDM(targetUser, {
+                title: 'Amonestación Oficial',
+                description: [
+                    'Has recibido una advertencia oficial del Alto Mando.',
+                    '',
+                    `**Motivo:** ${reason}`,
+                    `**Total acumuladas:** ${warningCount}`
+                ].join('\n'),
+                tone: 'burgundy',
+                footer: `Emitida por ${interaction.user.tag}`
             });
-
-            return interaction.editReply({ embeds: [embed] });
+            return;
         }
-    },
+
+        const warnings = await db.getWarnings(targetUser.id);
+        if (warnings.length === 0) {
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Historial Disciplinario',
+                    description: `<@${targetUser.id}> no registra advertencias.`,
+                    tone: 'gold'
+                })],
+                allowedMentions: { parse: [] }
+            });
+        }
+
+        const recentWarnings = warnings.slice(-10).reverse();
+        const embed = createCrownEmbed({
+            title: 'Historial Disciplinario',
+            description: `Miembro: <@${targetUser.id}> \u00B7 Total: **${warnings.length}**`,
+            tone: 'charcoal',
+            footer: 'Últimas 10 amonestaciones'
+        });
+
+        recentWarnings.forEach((w, i) => {
+            const unix = Math.floor(new Date(w.date).getTime() / 1000);
+            const modText = /^\d+$/.test(String(w.moderator)) ? `<@${w.moderator}>` : w.moderator;
+            embed.addFields({
+                name: `Amonestación #${warnings.length - i}`,
+                value: `${w.reason}\n<t:${unix}:d> \u00B7 Por ${modText}`
+            });
+        });
+
+        return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
+    }
 };

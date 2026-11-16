@@ -1,35 +1,48 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const db = require('../../database.js');
 const config = require('../../config.js');
-const { createPremiumEmbed } = require('../../utils/embeds.js');
+const { createCrownEmbed } = require('../../utils/embeds.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('diaria')
-        .setDescription('Muestra la misión diaria activa.'),
-    async execute(interaction) {
-        const logo = new AttachmentBuilder(config.branding.logoPath);
-        const activeMission = await db.getActiveMission();
+        .setDescription('Muestra la misión diaria activa.')
+        .setContexts(InteractionContextType.Guild),
 
+    async execute(interaction) {
+        await interaction.deferReply();
+
+        const activeMission = await db.getActiveMission();
         if (!activeMission) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No hay misión activa configurada.')], files: [logo] });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Misión Diaria',
+                    description: 'No hay ningún encargo activo en este momento.',
+                    tone: 'smoke'
+                })]
+            });
         }
 
         const missionDetails = activeMission.is_custom
             ? { description: activeMission.description, reward: activeMission.reward }
             : config.missions.find(m => m.key === activeMission.mission_key);
 
-        const description = missionDetails ? missionDetails.description : 'Misión desconocida';
+        const description = missionDetails ? missionDetails.description : 'Encargo sin descripción.';
         const reward = missionDetails ? missionDetails.reward : 0;
+        const setUnix = activeMission.date_set
+            ? Math.floor(new Date(activeMission.date_set).getTime() / 1000)
+            : null;
 
-        const embed = createPremiumEmbed('📅 Misión Diaria', '')
-            .addFields(
-                { name: '📝 Descripción', value: `\`\`\`${description}\`\`\`` },
-                { name: '💎 Recompensa', value: `**${reward}** Puntos de Prestigio`, inline: true },
-                { name: '🗓️ Fecha', value: activeMission.date_set ? `<t:${Math.floor(new Date(activeMission.date_set).getTime() / 1000)}:R>` : 'Hoy', inline: true }
-            )
-            .setFooter({ text: 'Usa /entregar para enviar tus pruebas.' });
+        const embed = createCrownEmbed({
+            title: 'Encargo del Día',
+            description: `> ${description}`,
+            tone: 'gold',
+            footer: 'Usa /entregar para presentar tus pruebas'
+        }).addFields(
+            { name: 'Recompensa', value: `**${reward}** pts`, inline: true },
+            { name: 'Publicado', value: setUnix ? `<t:${setUnix}:R>` : 'Hoy', inline: true }
+        );
 
-        await interaction.reply({ embeds: [embed], files: [logo] });
-    },
+        return interaction.editReply({ embeds: [embed] });
+    }
 };

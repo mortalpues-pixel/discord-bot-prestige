@@ -1,66 +1,83 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, InteractionContextType, MessageFlags } = require('discord.js');
 const db = require('../../database.js');
 const config = require('../../config.js');
-const { createPremiumEmbed } = require('../../utils/embeds.js');
+const { createCrownEmbed } = require('../../utils/embeds.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('entregar')
-        .setDescription('Envía pruebas de que completaste la misión diaria.')
+        .setDescription('Presenta pruebas de haber completado la misión diaria.')
+        .setContexts(InteractionContextType.Guild)
         .addAttachmentOption(option =>
             option.setName('prueba')
-                .setDescription('Sube una captura de pantalla como prueba')
+                .setDescription('Captura de pantalla como prueba')
                 .setRequired(true))
         .addAttachmentOption(option =>
             option.setName('prueba2')
-                .setDescription('Sube una segunda captura (opcional)')
+                .setDescription('Segunda captura (opcional)')
                 .setRequired(false))
         .addAttachmentOption(option =>
             option.setName('prueba3')
-                .setDescription('Sube una tercera captura (opcional)')
+                .setDescription('Tercera captura (opcional)')
                 .setRequired(false)),
+
     async execute(interaction) {
-        const logo = new AttachmentBuilder(config.branding.logoPath);
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         const activeMission = await db.getActiveMission();
         if (!activeMission) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No hay misión activa para entregar.')], files: [logo], ephemeral: true });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Sin Encargo Activo',
+                    description: 'No hay ninguna misión activa para entregar en este momento.',
+                    tone: 'smoke'
+                })]
+            });
         }
 
-        // Check for duplicate submission - DISABLED PARA EVITAR BLOQUEOS
-        // const alreadySubmitted = await db.hasUserSubmitted(interaction.user.id, activeMission.mission_key, activeMission.date_set);
-        // if (alreadySubmitted) {
-        //     return interaction.reply({ 
-        //         embeds: [createPremiumEmbed('⚠️ Aviso', 'Ya has enviado una prueba para esta misión o ya ha sido aprobada.')], 
-        //         files: [logo], 
-        //         ephemeral: true 
-        //     });
-        // }
+        const attachments = [
+            interaction.options.getAttachment('prueba'),
+            interaction.options.getAttachment('prueba2'),
+            interaction.options.getAttachment('prueba3')
+        ].filter(Boolean);
 
-        const attachments = [];
-        const prueba1 = interaction.options.getAttachment('prueba');
-        if (prueba1) attachments.push(prueba1);
-
-        const prueba2 = interaction.options.getAttachment('prueba2');
-        if (prueba2) attachments.push(prueba2);
-
-        const prueba3 = interaction.options.getAttachment('prueba3');
-        if (prueba3) attachments.push(prueba3);
-
-        const validAttachments = attachments.filter(a => a.contentType.startsWith('image/'));
+        const validAttachments = attachments.filter(
+            a => typeof a.contentType === 'string' && a.contentType.startsWith('image/')
+        );
 
         if (validAttachments.length === 0) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'Por favor envía al menos una imagen válida.')], files: [logo], ephemeral: true });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Prueba no válida',
+                    description: 'Adjunta al menos una imagen válida (PNG, JPG o WEBP).',
+                    tone: 'burgundy'
+                })]
+            });
         }
 
         const proofUrls = validAttachments.map(a => a.url);
-
         const missionReward = activeMission.is_custom
-            ? activeMission.reward
+            ? Number(activeMission.reward) || 0
             : (config.missions.find(m => m.key === activeMission.mission_key)?.reward || 0);
 
-        await db.addSubmission(interaction.user.id, activeMission.mission_key, proofUrls, missionReward);
+        const submissionId = await db.addSubmission(
+            interaction.user.id,
+            activeMission.mission_key,
+            proofUrls,
+            missionReward
+        );
 
-        await interaction.reply({ embeds: [createPremiumEmbed('✅ Entrega Recibida', `Se han recibido **${proofUrls.length}** capturas.\n\nTu prueba está pendiente de aprobación por la familia.`)], files: [logo], ephemeral: true });
-    },
+        const embed = createCrownEmbed({
+            title: `Entrega Registrada \u00B7 #${submissionId}`,
+            description: [
+                `Se han recibido **${proofUrls.length}** captura(s) para su revisión.`,
+                '',
+                'El Alto Mando evaluará el expediente a la mayor brevedad.'
+            ].join('\n'),
+            tone: 'gold',
+            footer: `Recompensa asignada: ${missionReward} pts`
+        });
+
+        return interaction.editReply({ embeds: [embed] });
+    }
 };

@@ -1,121 +1,219 @@
-const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, InteractionContextType, MessageFlags } = require('discord.js');
 const db = require('../../database.js');
-const config = require('../../config.js');
+const { isHighCommand } = require('../../utils/permissions.js');
+const { createCrownEmbed } = require('../../utils/embeds.js');
+const { buildEventAnnouncementPayload } = require('../../interactions/events.js');
+
+const ephemeral = MessageFlags.Ephemeral;
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('evento')
-        .setDescription('Sistema de eventos.')
+        .setDescription('Sistema de convocatorias y eventos de la Corte.')
+        .setContexts(InteractionContextType.Guild)
         .addSubcommand(subcommand =>
             subcommand
                 .setName('anunciar')
-                .setDescription('Anuncia un nuevo evento.')
+                .setDescription('Anuncia una nueva convocatoria.')
                 .addStringOption(option => option.setName('titulo').setDescription('Título del evento').setRequired(true))
                 .addStringOption(option => option.setName('descripcion').setDescription('Descripción del evento').setRequired(true))
                 .addStringOption(option => option.setName('fecha').setDescription('Fecha y hora del evento').setRequired(true))
-                .addIntegerOption(option => option.setName('recompensa').setDescription('Puntos de prestigio por asistir').setRequired(false)))
+                .addIntegerOption(option =>
+                    option.setName('recompensa')
+                        .setDescription('Puntos de prestigio por asistir')
+                        .setMinValue(0)
+                        .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('registrarse')
-                .setDescription('Registrarse en un evento')
-                .addIntegerOption(option => option.setName('id').setDescription('ID del evento (opcional, por defecto el último)').setRequired(false)))
+                .setDescription('Inscribirse en una convocatoria abierta.')
+                .addIntegerOption(option =>
+                    option.setName('id')
+                        .setDescription('ID de la convocatoria (opcional, por defecto la última)')
+                        .setMinValue(1)
+                        .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('participantes')
-                .setDescription('Ver lista de participantes (Autorizados)')
-                .addIntegerOption(option => option.setName('id').setDescription('ID del evento (opcional, por defecto el último)').setRequired(false))),
-    async execute(interaction) {
-        const logo = new AttachmentBuilder(config.branding.logoPath);
-        const { createPremiumEmbed } = require('../../utils/embeds.js');
+                .setDescription('Ver lista de inscritos (Alto Mando).')
+                .addIntegerOption(option =>
+                    option.setName('id')
+                        .setDescription('ID de la convocatoria (opcional, por defecto la última)')
+                        .setMinValue(1)
+                        .setRequired(false))),
 
+    async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'anunciar') {
-            const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
-            if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
+            if (!isHighCommand(interaction.member)) {
+                return interaction.reply({
+                    embeds: [createCrownEmbed({
+                        title: 'Acceso Denegado',
+                        description: 'No estás autorizado por la Corte.',
+                        tone: 'burgundy'
+                    })],
+                    flags: ephemeral
+                });
             }
 
-            const title = interaction.options.getString('titulo');
-            const description = interaction.options.getString('descripcion');
-            const date = interaction.options.getString('fecha');
+            await interaction.deferReply();
+
+            const title = interaction.options.getString('titulo', true);
+            const description = interaction.options.getString('descripcion', true);
+            const date = interaction.options.getString('fecha', true);
             const reward = interaction.options.getInteger('recompensa') || 0;
 
             const result = await db.createEvent(title, description, date, interaction.user.id, reward);
             const eventId = result.lastInsertRowid;
 
-            const embed = createPremiumEmbed(`📢 Nuevo Evento: ${title}`, description)
-                .addFields(
-                    { name: '🗓️ Fecha/Hora', value: `**${date}**`, inline: true },
-                    { name: '💎 Recompensa', value: `**${reward}** Puntos`, inline: true },
-                    { name: '🆔 ID del Evento', value: `\`${eventId}\``, inline: true }
-                )
-                .setFooter({ text: 'Usa /evento registrarse para apuntarte.' });
+            const payload = buildEventAnnouncementPayload({
+                id: eventId,
+                title,
+                description,
+                date_time: date,
+                reward,
+                status: 'open',
+                attendees: []
+            });
 
-            await interaction.reply({ content: '@everyone', embeds: [embed], files: [logo] });
+            return interaction.editReply({
+                content: '@everyone',
+                ...payload,
+                allowedMentions: { parse: ['everyone'] }
+            });
+        }
 
-        } else if (subcommand === 'participantes') {
-            const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
-            if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
+        if (subcommand === 'participantes') {
+            if (!isHighCommand(interaction.member)) {
+                return interaction.reply({
+                    embeds: [createCrownEmbed({
+                        title: 'Acceso Denegado',
+                        description: 'No estás autorizado por la Corte.',
+                        tone: 'burgundy'
+                    })],
+                    flags: ephemeral
+                });
             }
+
+            await interaction.deferReply({ flags: ephemeral });
 
             let eventId = interaction.options.getInteger('id');
-
             if (!eventId) {
                 const events = await db.getEvents();
-                if (events.length > 0) {
-                    eventId = events[0].id;
-                } else {
-                    return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No hay eventos activos.')], files: [logo], ephemeral: true });
+                if (events.length === 0) {
+                    return interaction.editReply({
+                        embeds: [createCrownEmbed({
+                            title: 'Sin Convocatorias',
+                            description: 'No hay convocatorias registradas.',
+                            tone: 'smoke'
+                        })]
+                    });
                 }
+                eventId = events[0].id;
             }
 
-            const attendeesIds = await db.getEventAttendees(eventId);
-
-            if (attendeesIds.length === 0) {
-                return interaction.reply({ embeds: [createPremiumEmbed(`👥 Participantes Evento #${eventId}`, 'No hay nadie registrado aún.')], files: [logo], ephemeral: true });
-            }
-
-            const attendeesList = attendeesIds.map((id, index) => `**${index + 1}.** <@${id}>`).join('\n');
-            const embed = createPremiumEmbed(`👥 Participantes Evento #${eventId}`, `Total: **${attendeesIds.length}**\n\n${attendeesList}`);
-
-            await interaction.reply({ embeds: [embed], files: [logo], ephemeral: true });
-
-        } else if (subcommand === 'registrarse') {
-            let eventId = interaction.options.getInteger('id');
-
-            if (!eventId) {
-                const events = await db.getEvents();
-                // Filter for open events if possible, or just pick first
-                const openEvents = events.filter(e => e.status !== 'closed');
-                if (openEvents.length > 0) {
-                    eventId = openEvents[0].id;
-                } else {
-                    return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No hay eventos activos.')], files: [logo], ephemeral: true });
-                }
-            }
-
-            // Check if event is actually open
             const event = await db.getEvent(eventId);
             if (!event) {
-                return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'Evento no encontrado.')], files: [logo], ephemeral: true });
-            }
-            if (event.status === 'closed') {
-                return interaction.reply({ embeds: [createPremiumEmbed('⚠️ Aviso', 'Este evento ya ha finalizado.')], files: [logo], ephemeral: true });
+                return interaction.editReply({
+                    embeds: [createCrownEmbed({
+                        title: 'Convocatoria no encontrada',
+                        description: `No se encontró ninguna convocatoria con el ID **#${eventId}**.`,
+                        tone: 'smoke'
+                    })]
+                });
             }
 
-            try {
-                const success = await db.registerForEvent(eventId, interaction.user.id);
-                if (success) {
-                    await interaction.reply({ embeds: [createPremiumEmbed('✅ Registro Exitoso', `Te has registrado correctamente al evento **#${eventId}**.`)], files: [logo], ephemeral: true });
-                } else {
-                    await interaction.reply({ embeds: [createPremiumEmbed('⚠️ Aviso', `Ya estás registrado en el evento **#${eventId}**.`)], files: [logo], ephemeral: true });
-                }
-            } catch (error) {
-                console.error(error);
-                await interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'Error al registrarte. Verifica el ID del evento.')], files: [logo], ephemeral: true });
+            const attendeesIds = event.attendees || [];
+            if (attendeesIds.length === 0) {
+                return interaction.editReply({
+                    embeds: [createCrownEmbed({
+                        title: `Inscritos \u00B7 Convocatoria #${eventId}`,
+                        description: 'Todavía no hay miembros inscritos.',
+                        tone: 'charcoal'
+                    })]
+                });
             }
+
+            const lines = [];
+            let charCount = 0;
+            let omitted = 0;
+            for (let i = 0; i < attendeesIds.length; i++) {
+                const line = `**${i + 1}.** <@${attendeesIds[i]}>`;
+                if (charCount + line.length + 1 > 3800) {
+                    omitted = attendeesIds.length - i;
+                    break;
+                }
+                lines.push(line);
+                charCount += line.length + 1;
+            }
+            if (omitted > 0) lines.push(`\n*...y ${omitted} inscritos más.*`);
+
+            const embed = createCrownEmbed({
+                title: `Inscritos \u00B7 Convocatoria #${eventId}`,
+                description: `Total: **${attendeesIds.length}**\n\n${lines.join('\n')}`,
+                tone: 'charcoal',
+                footer: event.title
+            });
+
+            return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
         }
-    },
+
+        // registrarse
+        await interaction.deferReply({ flags: ephemeral });
+
+        let eventId = interaction.options.getInteger('id');
+        if (!eventId) {
+            const events = await db.getEvents();
+            const openEvents = events.filter(e => e.status === 'open');
+            if (openEvents.length === 0) {
+                return interaction.editReply({
+                    embeds: [createCrownEmbed({
+                        title: 'Sin Convocatorias',
+                        description: 'No hay convocatorias abiertas en este momento.',
+                        tone: 'smoke'
+                    })]
+                });
+            }
+            eventId = openEvents[0].id;
+        }
+
+        const event = await db.getEvent(eventId);
+        if (!event) {
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Convocatoria no encontrada',
+                    description: `No se encontró ninguna convocatoria con el ID **#${eventId}**.`,
+                    tone: 'smoke'
+                })]
+            });
+        }
+        if (event.status !== 'open') {
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Registro Cerrado',
+                    description: `La convocatoria **#${eventId}** ya ha concluido.`,
+                    tone: 'smoke'
+                })]
+            });
+        }
+
+        const added = await db.registerForEvent(eventId, interaction.user.id);
+        if (added) {
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Inscripción Confirmada',
+                    description: `Has quedado inscrito en la convocatoria **#${eventId}**.`,
+                    tone: 'gold'
+                })]
+            });
+        }
+        return interaction.editReply({
+            embeds: [createCrownEmbed({
+                title: 'Inscripción Existente',
+                description: `Ya figuras en la lista de inscritos de la convocatoria **#${eventId}**.`,
+                tone: 'charcoal'
+            })]
+        });
+    }
 };

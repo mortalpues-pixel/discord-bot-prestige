@@ -1,24 +1,27 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, InteractionContextType } = require('discord.js');
 const db = require('../../database.js');
-const config = require('../../config.js');
-const { createPremiumEmbed, createProgressBar } = require('../../utils/embeds.js');
+const { createCrownEmbed } = require('../../utils/embeds.js');
+const { generateProfileCard } = require('../../utils/cardGenerator.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('prestigio')
-        .setDescription('Muestra el nivel de prestigio.')
+        .setDescription('Muestra la cédula de prestigio de un miembro de la Corte.')
+        .setContexts(InteractionContextType.Guild)
         .addUserOption(option =>
             option.setName('usuario')
-                .setDescription('Ver el prestigio de otro usuario (opcional)')),
+                .setDescription('Miembro a consultar (opcional)')),
+
     async execute(interaction) {
         await interaction.deferReply();
+
         const targetUser = interaction.options.getUser('usuario') || interaction.user;
-        
+        let targetMember = null;
         let rankName = 'Ciudadano';
+
         if (interaction.guild) {
             try {
-                const targetMember = await interaction.guild.members.fetch(targetUser.id);
-                // Get highest role that is not everyone
+                targetMember = await interaction.guild.members.fetch(targetUser.id);
                 const highestRole = targetMember.roles.cache
                     .filter(r => r.name !== '@everyone')
                     .sort((a, b) => b.position - a.position)
@@ -30,38 +33,34 @@ module.exports = {
         }
 
         const userData = await db.getUserData(targetUser.id);
-        
-        // Load actual names for the medals
-        const allShopItems = await db.getShopItems();
-        if (userData.medals && userData.medals.length > 0) {
-            userData.medalDetails = userData.medals.map(emj => {
-                const item = allShopItems.find(i => i.type === 'medal' && i.emoji === emj);
-                return { 
-                    emoji: emj, 
-                    name: item ? item.name : 'Medalla', 
-                    color: (item && item.color) ? item.color : '#CCCCCC' 
-                };
-            });
-        }
+        const subject = targetMember ?? targetUser;
+        const displayName = targetMember?.displayName || targetUser.globalName || targetUser.username;
 
         try {
-            const { generateProfileCard } = require('../../utils/cardGenerator.js');
-            const cardBuffer = await generateProfileCard(targetUser, rankName, userData);
-            const attachment = new AttachmentBuilder(cardBuffer, { name: 'profile-card.png' });
-            
-            await interaction.editReply({ files: [attachment] });
+            const cardBuffer = await generateProfileCard(
+                {
+                    displayName,
+                    username: targetUser.username,
+                    displayAvatarURL: opts => subject.displayAvatarURL(opts)
+                },
+                rankName,
+                userData
+            );
+            const attachment = new AttachmentBuilder(cardBuffer, { name: 'cedula-prestigio.png' });
+            return interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error('Error generating profile card:', error);
-            
-            // Fallback to classic embed if canvas fails
-            const logo = new AttachmentBuilder(config.branding.logoPath);
-            const embed = createPremiumEmbed(`🏆 Perfil de Prestigio`, '')
-                .addFields(
-                    { name: '👤 Usuario', value: `<@${targetUser.id}>`, inline: true },
-                    { name: '✨ Puntos Totales', value: `**${userData.prestige}**`, inline: true },
-                    { name: '📅 Puntos Semanales', value: `**${userData.weekly_prestige}**`, inline: true }
-                );
-            await interaction.editReply({ content: `*(Modo ligero - error cargando tarjeta de imagen: ${error.message})*`, embeds: [embed], files: [logo] });
+
+            const embed = createCrownEmbed({
+                title: 'Cédula de Prestigio',
+                description: `Miembro: <@${targetUser.id}>\nRango: **${rankName}**`,
+                tone: 'gold',
+                footer: 'Modo editorial'
+            }).addFields(
+                { name: 'Prestigio acumulado', value: `**${userData.prestige}** pts`, inline: true },
+                { name: 'Mérito semanal', value: `**+${userData.weekly_prestige}** pts`, inline: true }
+            );
+            return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
         }
-    },
+    }
 };

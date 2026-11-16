@@ -31,26 +31,24 @@ async function getNextSequence(name) {
     return counter.seq;
 }
 
-// Helper: Check Weekly Reset
+// Helper: Check Weekly Reset (ISO-8601 UTC)
 const checkWeeklyReset = async (user) => {
     const now = new Date();
     const lastReset = user.last_weekly_reset || new Date(0);
 
-    // Get ISO week number for comparison
-    const getISOWeek = (date) => {
-        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const getISOWeekInfo = (date) => {
+        const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
         const dayNum = d.getUTCDay() || 7;
         d.setUTCDate(d.getUTCDate() + 4 - dayNum);
         const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return { week, year: d.getUTCFullYear() };
     };
 
-    const currentWeek = getISOWeek(now);
-    const lastResetWeek = getISOWeek(lastReset);
-    const currentYear = now.getUTCFullYear();
-    const lastResetYear = lastReset.getUTCFullYear();
+    const current = getISOWeekInfo(now);
+    const last = getISOWeekInfo(lastReset);
 
-    if (currentWeek !== lastResetWeek || currentYear !== lastResetYear) {
+    if (current.week !== last.week || current.year !== last.year) {
         user.weekly_prestige = 0;
         user.last_weekly_reset = now;
         return true;
@@ -119,12 +117,23 @@ const addUserPrestige = async (userId, amount, reason = "Unknown", adminId = "SY
     return user.prestige;
 };
 
-const resetUserPrestige = async (userId) => {
+const resetUserPrestige = async (userId, adminId = 'SYSTEM') => {
     await User.findOneAndUpdate(
         { userId },
-        { prestige: 0 },
+        { prestige: 0, weekly_prestige: 0 },
         { upsert: true }
     );
+    try {
+        await PrestigeLog.create({
+            targetUserId: userId,
+            adminId,
+            amount: 0,
+            reason: 'Prestigio restablecido a 0',
+            timestamp: new Date()
+        });
+    } catch (err) {
+        console.error('Failed to create prestige reset log:', err);
+    }
 };
 
 // Mission Helpers
@@ -240,7 +249,7 @@ const updateEventStatus = async (eventId, status, expectedStatus = null) => {
 
 const registerForEvent = async (eventId, userId) => {
     const res = await Event.updateOne(
-        { id: eventId },
+        { id: eventId, status: 'open' },
         { $addToSet: { attendees: userId } }
     );
     return res.modifiedCount > 0;
@@ -294,16 +303,15 @@ const getWeeklyLeaderboard = async () => {
 
     // 2. Check for resets
     for (const user of users) {
-        // checkWeeklyReset is technically async in signature but synchronous in logic, 
-        // however we await it to be safe if implementation changes.
         const changed = await checkWeeklyReset(user);
 
         if (changed) {
-            // Queue the save operation to run in parallel later
             savePromises.push(user.save());
         }
 
-        validUsers.push(user);
+        if (user.weekly_prestige > 0) {
+            validUsers.push(user);
+        }
     }
 
     // 3. Wait for all necessary updates to complete

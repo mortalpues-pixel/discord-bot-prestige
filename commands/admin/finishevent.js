@@ -1,67 +1,111 @@
-const { SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
+const {
+    SlashCommandBuilder, PermissionFlagsBits, InteractionContextType, MessageFlags
+} = require('discord.js');
 const db = require('../../database.js');
-const config = require('../../config.js');
-const { createPremiumEmbed } = require('../../utils/embeds.js');
+const { isHighCommand } = require('../../utils/permissions.js');
+const { createCrownEmbed } = require('../../utils/embeds.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('finalizar-evento')
-        .setDescription('Finaliza un evento y reparte las recompensas a los asistentes.')
+        .setDescription('Concluye una convocatoria y reparte las recompensas a los inscritos.')
+        .setContexts(InteractionContextType.Guild)
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
         .addIntegerOption(option =>
             option.setName('id')
-                .setDescription('ID del evento a finalizar')
+                .setDescription('ID de la convocatoria a finalizar')
+                .setMinValue(1)
                 .setRequired(true)),
-    async execute(interaction) {
-        const logo = new AttachmentBuilder(config.branding.logoPath);
 
-        const highCommandRole = process.env.HIGH_COMMAND_ROLE_ID;
-        if (highCommandRole && !interaction.member.roles.cache.has(highCommandRole)) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No estás autorizado por la familia.')], files: [logo], ephemeral: true });
+    async execute(interaction) {
+        if (!isHighCommand(interaction.member)) {
+            return interaction.reply({
+                embeds: [createCrownEmbed({
+                    title: 'Acceso Denegado',
+                    description: 'No estás autorizado por la Corte.',
+                    tone: 'burgundy'
+                })],
+                flags: MessageFlags.Ephemeral
+            });
         }
 
-        const eventId = interaction.options.getInteger('id');
+        await interaction.deferReply();
+
+        const eventId = interaction.options.getInteger('id', true);
         const event = await db.getEvent(eventId);
 
         if (!event) {
-            return interaction.reply({ embeds: [createPremiumEmbed('❌ Error', 'No se encontró un evento con ese ID.')], files: [logo], ephemeral: true });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Convocatoria no encontrada',
+                    description: `No se encontró ninguna convocatoria con el ID **#${eventId}**.`,
+                    tone: 'smoke'
+                })]
+            });
         }
 
-        if (event.status === 'closed') {
-            return interaction.reply({ embeds: [createPremiumEmbed('⚠️ Aviso', 'Este evento ya ha sido finalizado.')], files: [logo], ephemeral: true });
+        if (event.status !== 'open') {
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Convocatoria ya cerrada',
+                    description: `La convocatoria **#${eventId}** ya había sido concluida.`,
+                    tone: 'smoke'
+                })]
+            });
         }
 
         const attendees = await db.getEventAttendees(eventId);
         const reward = event.reward || 0;
 
-        // Attempt to close the event atomically to prevent double rewards
         const success = await db.updateEventStatus(eventId, 'closed', 'open');
-        
         if (!success) {
-            return interaction.reply({ embeds: [createPremiumEmbed('⚠️ Aviso', 'Este evento ya ha sido finalizado por otro proceso.')], files: [logo], ephemeral: true });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Convocatoria ya cerrada',
+                    description: `La convocatoria **#${eventId}** ya fue cerrada por otro oficial.`,
+                    tone: 'smoke'
+                })]
+            });
         }
 
         if (attendees.length === 0) {
-            return interaction.reply({ embeds: [createPremiumEmbed('🏁 Evento Finalizado', 'El evento se cerró, pero no había participantes registrados.')], files: [logo] });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Convocatoria Concluida',
+                    description: `La convocatoria **${event.title}** ha cerrado sin participantes registrados.`,
+                    tone: 'smoke',
+                    footer: `Convocatoria #${eventId}`
+                })]
+            });
         }
 
         if (reward === 0) {
-            return interaction.reply({ embeds: [createPremiumEmbed('🏁 Evento Finalizado', `Evento finalizado con **${attendees.length}** participantes.\nNo había recompensa configurada.`)], files: [logo] });
+            return interaction.editReply({
+                embeds: [createCrownEmbed({
+                    title: 'Convocatoria Concluida',
+                    description: `La convocatoria **${event.title}** ha finalizado con **${attendees.length}** inscritos.\nNo había recompensa de prestigio asignada.`,
+                    tone: 'charcoal',
+                    footer: `Convocatoria #${eventId}`
+                })]
+            });
         }
 
-        // Distribute Rewards
-        let count = 0;
-        for (const userId of attendees) {
-            await db.addUserPrestige(userId, reward, `Evento: ${event.title}`, interaction.user.id);
-            count++;
-        }
+        await Promise.all(
+            attendees.map(userId =>
+                db.addUserPrestige(userId, reward, `Evento: ${event.title}`, interaction.user.id)
+            )
+        );
 
-        const embed = createPremiumEmbed('🏁 Evento Finalizado', `Se han repartido recompensas a **${count}** participantes.`)
-            .addFields(
-                { name: '💎 Recompensa por Persona', value: `**${reward}** Puntos`, inline: true },
-                { name: '👥 Total Repartido', value: `**${reward * count}** Puntos`, inline: true }
-            );
+        const embed = createCrownEmbed({
+            title: 'Convocatoria Concluida',
+            description: `Se han asignado recompensas de **${event.title}** a **${attendees.length}** participantes.`,
+            tone: 'gold',
+            footer: `Convocatoria #${eventId}`
+        }).addFields(
+            { name: 'Por participante', value: `**+${reward}** pts`, inline: true },
+            { name: 'Total asignado', value: `**+${reward * attendees.length}** pts`, inline: true }
+        );
 
-        await interaction.reply({ embeds: [embed], files: [logo] });
-    },
+        return interaction.editReply({ embeds: [embed] });
+    }
 };

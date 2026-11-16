@@ -1,48 +1,47 @@
 const { EmbedBuilder } = require('discord.js');
-const config = require('../config.js');
+const crown = require('./crown');
 
 /**
- * Creates a "Premium" styled embed with consistent branding.
- * @param {string} title - The title of the embed.
- * @param {string} description - The description/body of the embed.
- * @returns {EmbedBuilder} - The configured embed instance.
+ * Crea un embed sobrio acorde a la estética de la Corte Helmreich.
+ * @param {object} opts
+ * @param {string} [opts.title]
+ * @param {string} [opts.description]
+ * @param {'gold'|'charcoal'|'burgundy'|'smoke'|'obsidian'} [opts.tone='gold']
+ * @param {string|null} [opts.footer=null]
+ * @param {boolean} [opts.timestamp=true]
+ * @returns {EmbedBuilder}
  */
-function createPremiumEmbed(title, description) {
+function createCrownEmbed({ title, description, tone = 'gold', footer = null, timestamp = true } = {}) {
+    const color = crown.colors[tone] ?? crown.colors.gold;
     const embed = new EmbedBuilder()
-        .setColor(config.branding.color) // White (0xFFFFFF)
-        .setTitle(title)
-        .setThumbnail('attachment://logo.png')
-        .setTimestamp() // Adds date/time at the bottom
-        .setFooter({
-            text: 'Sistema de Misiones',
-        });
+        .setColor(color)
+        .setFooter({ text: footer ? `${footer} · ${crown.house}` : crown.house });
 
-    if (description && description.length > 0) {
-        embed.setDescription(description);
-    }
+    if (title) embed.setTitle(title);
+    if (description) embed.setDescription(description);
+    if (timestamp) embed.setTimestamp();
 
     return embed;
 }
 
-/**
- * Generates a text-based progress bar.
- * @param {number} current - Current value.
- * @param {number} max - Max value (for percentage).
- * @param {number} length - Number of blocks in the bar.
- * @returns {string} - The progress bar string.
- */
-function createProgressBar(current, max, length = 10) {
-    const percentage = Math.min(Math.max(current / max, 0), 1);
-    const progress = Math.round(length * percentage);
-    const emptyProgress = length - progress;
+/** Wrapper de compatibilidad hacia createCrownEmbed. */
+function createPremiumEmbed(title, description, opts = {}) {
+    return createCrownEmbed({ title, description, ...opts });
+}
 
-    const progressText = '█'.repeat(progress);
-    const emptyProgressText = '░'.repeat(emptyProgress);
-
-    return `[${progressText}${emptyProgressText}]`;
+/** Envía un aviso privado por MD con el formato de la Corte; ignora si el usuario tiene MDs cerrados. */
+async function sendCourtDM(user, embedOptions) {
+    if (!user || typeof user.send !== 'function') return false;
+    try {
+        await user.send({ embeds: [createCrownEmbed(embedOptions)] });
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 module.exports = {
+    createCrownEmbed,
     createPremiumEmbed,
-    createProgressBar
+    sendCourtDM
 };
