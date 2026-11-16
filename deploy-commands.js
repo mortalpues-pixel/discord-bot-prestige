@@ -1,40 +1,22 @@
-const { REST, Routes } = require('discord.js');
-const { clientId, guildId, token } = require('dotenv').config().parsed || process.env;
-const fs = require('node:fs');
-const path = require('node:path');
+require('dotenv').config();
+const { loadCommands } = require('./utils/commandLoader');
+const { registerCommands } = require('./utils/registerCommands');
 
-const commands = [];
-const foldersPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
-
-for (const folder of commandFolders) {
-    const commandsPath = path.join(foldersPath, folder);
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            commands.push(command.data.toJSON());
-        } else {
-            console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-        }
-    }
-}
-
-const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-
+// Registro manual (el bot ya lo hace solo al arrancar). Uso: node deploy-commands.js
 (async () => {
     try {
-        console.log(`Started refreshing ${commands.length} application (/) commands.`);
+        const { commands, skipped } = loadCommands();
+        if (skipped.length) console.log(`Módulos desactivados: ${skipped.join(', ')}`);
 
-        // Reload for guild only for faster dev
-        await rest.put(
-            Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-            { body: commands },
-        );
-
-        console.log('Successfully reloaded application (/) commands.');
+        const names = await registerCommands({
+            token: (process.env.DISCORD_TOKEN || '').trim(),
+            clientId: process.env.CLIENT_ID,
+            guildId: process.env.GUILD_ID,
+            commands: [...commands.values()]
+        });
+        console.log(`Registrados ${names.length} comandos: ${names.join(', ')}`);
     } catch (error) {
         console.error(error);
+        process.exitCode = 1;
     }
 })();

@@ -1,141 +1,130 @@
 require('dotenv').config();
-const fs = require('node:fs');
-
-// Global error handling to prevent the bot from "turning off" on Render
-process.on('unhandledRejection', error => {
-    console.error('Unhandled promise rejection:', error);
-});
-
-process.on('uncaughtException', error => {
-    console.error('Uncaught exception:', error);
-});
-const path = require('node:path');
-const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const cron = require('node-cron');
-const db = require('./database');
-const config = require('./config');
+const { Client, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const mongoose = require('mongoose');
-
 const express = require('express');
+
+const db = require('./database');
+const conclave = require('./services/conclave');
+const { loadCommands, loadInteractionHandlers } = require('./utils/commandLoader');
+const { registerCommands } = require('./utils/registerCommands');
+
+// Un fallo suelto no debe tumbar el bot en Railway.
+process.on('unhandledRejection', error => console.error('Unhandled promise rejection:', error));
+process.on('uncaughtException', error => console.error('Uncaught exception:', error));
+
+// Solo se necesita el gateway básico: todo va por slash commands y botones.
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+const { commands, skipped } = loadCommands();
+client.commands = commands;
+client.interactionHandlers = loadInteractionHandlers();
+if (skipped.length) console.log(`Módulos desactivados: ${skipped.join(', ')}`);
+
+// ── Healthcheck honesto: 200 solo si Discord y MongoDB responden ─────────────
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 app.get('/', (req, res) => {
-    res.send('Bot is online!');
+    const healthy = client.isReady() && mongoose.connection.readyState === 1;
+    res.status(healthy ? 200 : 503).send(healthy ? 'Bot is online!' : 'Bot is starting or degraded');
 });
+const server = app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
-app.listen(PORT, () => {
-    console.log(`Web server running on port ${PORT}`);
-});
-
-
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages
-    ]
-});
-
-
-client.commands = new Collection();
-
-
-const foldersPath = path.join(__dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
-
-for (const folder of commandFolders) {
-    const commandsPath = path.join(foldersPath, folder);
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-        } else {
-            console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-        }
-    }
-}
-
-
-
+// ── Arranque ─────────────────────────────────────────────────────────────────
 client.once(Events.ClientReady, async readyClient => {
     console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+
     try {
         await db.initDb();
+        await conclave.ensureIndexes();
     } catch (err) {
         console.error('Database connection failed during startup:', err);
     }
-});
 
-client.on('error', error => {
-    console.error('Discord.js client error:', error);
-});
-
-client.on('warn', warning => {
-    console.warn('Discord.js client warning:', warning);
-});
-
-client.on('debug', info => {
-    console.log(`[DISCORD DEBUG] ${info}`);
-});
-
-client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-
-    if (mongoose.connection.readyState !== 1) {
-        try {
-            await interaction.reply({
-                content: '❌ **Error Crítico**: La base de datos no está conectada. El bot no puede procesar comandos hasta que se restablezca la conexión.',
-                flags: 64
-            });
-        } catch (e) {
-            console.error('Failed to send DB error message:', e);
-        }
-        return;
+    // Registra los comandos al arrancar: lo que no está activo (p. ej. la tienda) desaparece de Discord.
+    try {
+        const names = await registerCommands({
+            token: (process.env.DISCORD_TOKEN || '').trim(),
+            clientId: readyClient.application.id,
+            guildId: process.env.GUILD_ID,
+            commands: [...client.commands.values()]
+        });
+        console.log(`Comandos registrados (${names.length}): ${names.join(', ')}`);
+    } catch (err) {
+        console.error('No se pudieron registrar los comandos:', err);
     }
 
-    const command = interaction.client.commands.get(interaction.commandName);
+    // Reanuda escrutinios que quedaron a medias por un reinicio.
+    try {
+        if (mongoose.connection.readyState === 1) await conclave.recoverConclaves(client);
+    } catch (err) {
+        console.error('No se pudieron reanudar los cónclaves:', err);
+    }
+});
 
-    if (!command) {
-        console.error(`No matching command found for ${interaction.commandName}.`);
-        return;
+client.on('error', error => console.error('Discord.js client error:', error));
+client.on('warn', warning => console.warn('Discord.js client warning:', warning));
+
+// ── Interacciones ────────────────────────────────────────────────────────────
+async function replyOnce(interaction, content) {
+    const payload = { content, flags: MessageFlags.Ephemeral };
+    try {
+        if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
+        else await interaction.reply(payload);
+    } catch (err) {
+        console.warn('No se pudo responder a la interacción (¿expirada?):', err.message);
+    }
+}
+
+client.on(Events.InteractionCreate, async interaction => {
+    const isCommand = interaction.isChatInputCommand();
+    const isButton = interaction.isButton();
+    if (!isCommand && !isButton) return;
+
+    if (mongoose.connection.readyState !== 1) {
+        return replyOnce(interaction, 'La base de datos no está conectada. Inténtalo de nuevo en unos instantes.');
     }
 
     try {
-        await command.execute(interaction);
+        if (isCommand) {
+            const command = client.commands.get(interaction.commandName);
+            if (!command) {
+                console.error(`No matching command found for ${interaction.commandName}.`);
+                return;
+            }
+            await command.execute(interaction);
+        } else {
+            const handler = client.interactionHandlers.get(interaction.customId.split(':')[0]);
+            if (!handler) return;
+            await handler.execute(interaction);
+        }
     } catch (error) {
         console.error('Execution error:', error);
-
-        // Final fallback: try to reply if possible, but don't crash if interaction is expired
-        try {
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({
-                    content: 'Hubo un error al ejecutar este comando!',
-                    flags: [64] // 64 is Ephemeral in newer discord.js versions
-                });
-            } else if (interaction.deferred) {
-                await interaction.followUp({
-                    content: 'Hubo un error al ejecutar este comando!',
-                    flags: [64]
-                });
-            }
-        } catch (innerError) {
-            console.warn('Could not send error reply to user (Interaction might have expired/failed):', innerError.message);
-        }
+        await replyOnce(interaction, 'Hubo un error al procesar la solicitud.');
     }
 });
 
-const token = process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.trim() : '';
-console.log(`[DEBUG] Token length: ${token.length}`);
-console.log(`[DEBUG] Token starts with: ${token.substring(0, 5)}...`);
+// ── Apagado limpio (redeploys de Railway) ────────────────────────────────────
+// El estado de los cónclaves vive en MongoDB: un escrutinio interrumpido se reanuda al volver.
+let shuttingDown = false;
+async function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal} recibido, cerrando...`);
+    try {
+        conclave.cancelPendingRefreshes();
+        server.close();
+        await client.destroy();
+        await mongoose.connection.close();
+    } catch (err) {
+        console.error('Error durante el apagado:', err);
+    } finally {
+        process.exit(0);
+    }
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
-const loginPromise = client.login(token)
-    .then(() => {
-        console.log('Login promise resolved! Bot should be online.');
-    })
-    .catch(err => {
-        console.error('LOGIN ERROR (discord.js):', err);
-        // Force exit only on fatal errors
-        // process.exit(1); 
-    });
+const token = (process.env.DISCORD_TOKEN || '').trim();
+client.login(token)
+    .then(() => console.log('Login resuelto.'))
+    .catch(err => console.error('LOGIN ERROR (discord.js):', err));
