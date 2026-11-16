@@ -853,7 +853,7 @@ async function renderProfileCard({ displayName, rankName, avatarUrl, prestige, w
     // cabecera
     ctx.fillStyle = COL.gold;
     ctx.font = fontStack('600', 19);
-    drawTracked(ctx, 'C\u00c9DULA DE PRESTIGIO', L, 66, 7);
+    drawTracked(ctx, 'PRESTIGIO', L, 66, 7);
 
     ctx.fillStyle = COL.smoke;
     ctx.font = fontStack('500', 18);
@@ -889,7 +889,7 @@ async function renderProfileCard({ displayName, rankName, avatarUrl, prestige, w
     drawTracked(ctx, 'PRESTIGIO ACUMULADO', TX, 248, 2.5);
 
     const col2X = TX + 340;
-    drawTracked(ctx, 'M\u00c9RITO SEMANAL', col2X, 248, 2.5);
+    drawTracked(ctx, 'PRESTIGIO SEMANAL', col2X, 248, 2.5);
 
     const pText = String(nPrestige);
     const pFit = fitText(ctx, pText, '600', 44, 28, 310, 1.5);

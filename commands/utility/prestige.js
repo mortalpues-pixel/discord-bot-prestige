@@ -6,7 +6,7 @@ const { generateProfileCard } = require('../../utils/cardGenerator.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('prestigio')
-        .setDescription('Muestra la cédula de prestigio de un miembro de la Corte.')
+        .setDescription('Muestra el prestigio de un miembro de la Corte.')
         .setContexts(InteractionContextType.Guild)
         .addUserOption(option =>
             option.setName('usuario')
@@ -46,19 +46,19 @@ module.exports = {
                 rankName,
                 userData
             );
-            const attachment = new AttachmentBuilder(cardBuffer, { name: 'cedula-prestigio.png' });
+            const attachment = new AttachmentBuilder(cardBuffer, { name: 'prestigio.png' });
             return interaction.editReply({ files: [attachment] });
         } catch (error) {
             console.error('Error generating profile card:', error);
 
             const embed = createCrownEmbed({
-                title: 'Cédula de Prestigio',
+                title: 'Prestigio',
                 description: `Miembro: <@${targetUser.id}>\nRango: **${rankName}**`,
                 tone: 'gold',
                 footer: 'Modo editorial'
             }).addFields(
                 { name: 'Prestigio acumulado', value: `**${userData.prestige}** pts`, inline: true },
-                { name: 'Mérito semanal', value: `**+${userData.weekly_prestige}** pts`, inline: true }
+                { name: 'Prestigio semanal', value: `**+${userData.weekly_prestige}** pts`, inline: true }
             );
             return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
         }
