@@ -9,14 +9,26 @@ const crown = require('./crown');
  * @param {'gold'|'charcoal'|'burgundy'|'smoke'|'obsidian'} [opts.tone='gold']
  * @param {string|null} [opts.footer=null]
  * @param {boolean} [opts.timestamp=true]
+ * @param {boolean} [opts.thumbnail=true]
+ * @param {string|null} [opts.author=null]
  * @returns {EmbedBuilder}
  */
-function createCrownEmbed({ title, description, tone = 'gold', footer = null, timestamp = true } = {}) {
+function createCrownEmbed({
+    title,
+    description,
+    tone = 'gold',
+    footer = null,
+    timestamp = true,
+    thumbnail = true,
+    author = null
+} = {}) {
     const color = crown.colors[tone] ?? crown.colors.gold;
     const embed = new EmbedBuilder()
         .setColor(color)
         .setFooter({ text: footer ? `${footer} · ${crown.house}` : crown.house });
 
+    if (author) embed.setAuthor({ name: author, iconURL: crown.crestUrl });
+    if (thumbnail) embed.setThumbnail(crown.crestUrl);
     if (title) embed.setTitle(title);
     if (description) embed.setDescription(description);
     if (timestamp) embed.setTimestamp();

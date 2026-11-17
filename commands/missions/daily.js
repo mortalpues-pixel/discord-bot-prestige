@@ -27,20 +27,22 @@ module.exports = {
             ? { description: activeMission.description, reward: activeMission.reward }
             : config.missions.find(m => m.key === activeMission.mission_key);
 
-        const description = missionDetails ? missionDetails.description : 'Encargo sin descripción.';
+        const rawDescription = missionDetails ? missionDetails.description : 'Encargo sin descripción.';
+        const safeDescription = String(rawDescription).replace(/```/g, "'''");
         const reward = missionDetails ? missionDetails.reward : 0;
         const setUnix = activeMission.date_set
             ? Math.floor(new Date(activeMission.date_set).getTime() / 1000)
             : null;
 
         const embed = createCrownEmbed({
-            title: 'Encargo del Día',
-            description: `> ${description}`,
+            author: 'CORTE HELMREICH \u00B7 ORDEN DEL D\u00cdA',
+            title: 'Misión Diaria',
             tone: 'gold',
             footer: 'Usa /entregar para presentar tus pruebas'
         }).addFields(
-            { name: 'Recompensa', value: `**${reward}** pts`, inline: true },
-            { name: 'Publicado', value: setUnix ? `<t:${setUnix}:R>` : 'Hoy', inline: true }
+            { name: '\u25C6 Descripción', value: `\`\`\`\n${safeDescription}\n\`\`\`` },
+            { name: '\u25C6 Recompensa', value: `**${reward}** Puntos de Prestigio`, inline: true },
+            { name: '\u25C6 Publicado', value: setUnix ? `<t:${setUnix}:R>` : 'Hoy', inline: true }
         );
 
         return interaction.editReply({ embeds: [embed] });

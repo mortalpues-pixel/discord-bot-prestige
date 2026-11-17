@@ -10,16 +10,20 @@ const ephemeral = MessageFlags.Ephemeral;
 function buildEventAnnouncementPayload(event) {
     const count = Array.isArray(event.attendees) ? event.attendees.length : 0;
     const isOpen = event.status === 'open';
+    const safeDesc = event.description
+        ? `\`\`\`\n${String(event.description).replace(/```/g, "'''")}\n\`\`\``
+        : undefined;
 
     const embed = createCrownEmbed({
+        author: 'CORTE HELMREICH \u00B7 CONVOCATORIA OFICIAL',
         title: `Convocatoria \u00B7 ${event.title}`,
-        description: event.description || undefined,
+        description: safeDesc,
         tone: isOpen ? 'gold' : 'smoke',
         footer: `Convocatoria #${event.id}`
     }).addFields(
-        { name: 'Fecha y hora', value: `**${event.date_time}**`, inline: true },
-        { name: 'Recompensa', value: `**${event.reward || 0}** pts`, inline: true },
-        { name: 'Inscritos', value: `**${count}**`, inline: true }
+        { name: '\u25C6 Fecha y hora', value: `**${event.date_time}**`, inline: true },
+        { name: '\u25C6 Recompensa', value: `**${event.reward || 0}** Puntos de Prestigio`, inline: true },
+        { name: '\u25C6 Inscritos', value: `**${count}**`, inline: true }
     );
 
     const components = [];

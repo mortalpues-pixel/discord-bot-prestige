@@ -36,17 +36,20 @@ module.exports = {
         await interaction.deferReply();
 
         const description = interaction.options.getString('descripcion', true);
+        const safeDescription = String(description).replace(/```/g, "'''");
         const reward = interaction.options.getInteger('recompensa', true);
 
         await db.setActiveMission('custom', description, reward);
 
         const embed = createCrownEmbed({
-            title: 'Encargo del Día Promulgado',
-            description: `> ${description}`,
+            author: 'CORTE HELMREICH \u00B7 ORDEN DEL D\u00cdA',
+            title: 'Misión Diaria Actualizada',
             tone: 'gold',
-            footer: 'Encargo activo durante 24 horas'
+            footer: 'Esta misión está activa y visible para todos'
         }).addFields(
-            { name: 'Recompensa', value: `**${reward}** pts`, inline: true }
+            { name: '\u25C6 Descripción', value: `\`\`\`\n${safeDescription}\n\`\`\`` },
+            { name: '\u25C6 Recompensa', value: `**${reward}** Puntos de Prestigio`, inline: true },
+            { name: '\u25C6 Entrega', value: 'Usa `/entregar` con tu captura', inline: true }
         );
 
         return interaction.editReply({ embeds: [embed] });

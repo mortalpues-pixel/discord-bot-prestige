@@ -35,9 +35,9 @@ function buildSubmissionDetailPayload(submission, { includeActions = true } = {}
         tone,
         footer: `Estado: ${statusText}`
     }).addFields(
-        { name: 'Estado', value: statusText, inline: true },
-        { name: 'Recompensa', value: `**${reward}** pts`, inline: true },
-        { name: 'Pruebas', value: `${proofs.length} captura(s)`, inline: true }
+        { name: '\u25C6 Estado', value: statusText, inline: true },
+        { name: '\u25C6 Recompensa', value: `**${reward}** Puntos de Prestigio`, inline: true },
+        { name: '\u25C6 Pruebas', value: `${proofs.length} captura(s)`, inline: true }
     );
 
     const embeds = [mainEmbed];

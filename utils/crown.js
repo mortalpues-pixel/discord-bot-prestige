@@ -20,5 +20,6 @@ module.exports = {
         pending: '\u25C7'
     },
 
-    house: 'Casa Helmreich'
+    house: 'Casa Helmreich',
+    crestUrl: 'https://cdn.discordapp.com/avatars/1451007290923814953/028341bf0e88e6f1562e7e280a26b581.png?size=256'
 };
