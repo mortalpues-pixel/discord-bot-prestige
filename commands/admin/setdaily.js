@@ -42,7 +42,6 @@ module.exports = {
         await db.setActiveMission('custom', description, reward);
 
         const embed = createCrownEmbed({
-            author: 'CORTE HELMREICH \u00B7 ORDEN DEL D\u00cdA',
             title: 'Misión Diaria Actualizada',
             tone: 'gold',
             footer: 'Esta misión está activa y visible para todos'

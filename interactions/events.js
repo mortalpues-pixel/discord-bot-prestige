@@ -15,7 +15,6 @@ function buildEventAnnouncementPayload(event) {
         : undefined;
 
     const embed = createCrownEmbed({
-        author: 'CORTE HELMREICH \u00B7 CONVOCATORIA OFICIAL',
         title: `Convocatoria \u00B7 ${event.title}`,
         description: safeDesc,
         tone: isOpen ? 'gold' : 'smoke',

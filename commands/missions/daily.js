@@ -35,7 +35,6 @@ module.exports = {
             : null;
 
         const embed = createCrownEmbed({
-            author: 'CORTE HELMREICH \u00B7 ORDEN DEL D\u00cdA',
             title: 'Misión Diaria',
             tone: 'gold',
             footer: 'Usa /entregar para presentar tus pruebas'
